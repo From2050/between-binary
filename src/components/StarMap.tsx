@@ -169,9 +169,19 @@ export default function StarMap() {
         return () => ro.disconnect();
     }, []);
 
+    // ─── Respect prefers-reduced-motion: freeze orbit rotation, keep layout ───
+    const prefersReducedMotionRef = useRef(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        prefersReducedMotionRef.current = mq.matches;
+        const handler = (e: MediaQueryListEvent) => { prefersReducedMotionRef.current = e.matches; };
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
+
     // ─── Animation loop: GPU-only transform, no layout reflow ───
     const animate = useCallback(() => {
-        if (!isPausedRef.current) {
+        if (!isPausedRef.current && !prefersReducedMotionRef.current) {
             rotationRef.current += 0.0005;
         }
         const rot = rotationRef.current;
@@ -364,6 +374,9 @@ export default function StarMap() {
         @keyframes pulse-glow {
           0%, 100% { transform: scale(1); opacity: 0.25; }
           50% { transform: scale(1.5); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="pulse-glow"] { animation: none !important; }
         }
       `}</style>
         </div>

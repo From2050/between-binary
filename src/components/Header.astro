@@ -9,5 +9,50 @@ import Navigation from './Navigation.astro';
         <div class="hidden md:block">
             <Navigation />
         </div>
+        <button
+            id="mobile-menu-toggle"
+            type="button"
+            aria-label="Toggle navigation menu"
+            aria-expanded="false"
+            aria-controls="mobile-menu"
+            class="md:hidden w-10 h-10 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+        >
+            <i class="fas fa-bars text-xl" id="mobile-menu-icon"></i>
+        </button>
+    </div>
+
+    <div
+        id="mobile-menu"
+        class="md:hidden hidden border-t border-white/5 bg-[#050505]/95 backdrop-blur-md px-6 py-6"
+    >
+        <nav class="flex flex-col gap-5 text-base font-medium tracking-wide">
+            <a href="/garden/" class="text-slate-300 hover:text-emerald-400 transition-colors">GARDEN</a>
+            <a href="/lab/" class="text-slate-300 hover:text-amber-400 transition-colors">LAB</a>
+            <a href="/thoughts/" class="text-slate-300 hover:text-blue-400 transition-colors">THOUGHTS</a>
+            <a href="/about/" class="text-slate-300 hover:text-white transition-colors">ABOUT</a>
+        </nav>
     </div>
 </nav>
+
+<script>
+    const toggle = document.getElementById('mobile-menu-toggle');
+    const menu = document.getElementById('mobile-menu');
+    const icon = document.getElementById('mobile-menu-icon');
+
+    toggle?.addEventListener('click', () => {
+        const isOpen = !menu?.classList.contains('hidden');
+        menu?.classList.toggle('hidden');
+        toggle.setAttribute('aria-expanded', String(!isOpen));
+        icon?.classList.toggle('fa-bars', isOpen);
+        icon?.classList.toggle('fa-xmark', !isOpen);
+    });
+
+    menu?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => {
+            menu.classList.add('hidden');
+            toggle?.setAttribute('aria-expanded', 'false');
+            icon?.classList.add('fa-bars');
+            icon?.classList.remove('fa-xmark');
+        });
+    });
+</script>

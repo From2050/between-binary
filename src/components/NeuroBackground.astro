@@ -36,10 +36,16 @@
             return;
         }
         
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) {
+            console.log("NeuroBackground: Skipped (prefers-reduced-motion)");
+            return;
+        }
+
         const ctx = canvas.getContext('2d');
         let width, height;
         let particles = [];
-        
+
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
