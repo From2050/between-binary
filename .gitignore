@@ -1,13 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Astro generated files
+.astro/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
 .DS_Store
 Thumbs.db
-db.json
-*.log
-node_modules/
-# Hexo-era output dir — scoped to repo root so Astro's between-binary/public/ (static source assets) can be committed
-/public/
-.deploy*/
-_multiconfig.yml
 
-# Astro build output & generated types
-between-binary/dist/
-between-binary/.astro/
+# Environment
+.env
+.env.production
