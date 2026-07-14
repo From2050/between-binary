@@ -2,6 +2,68 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import StarMap from '../components/StarMap';
+import { getCollection } from 'astro:content';
+
+// Tailwind's JIT scans for literal class strings — dynamic `text-${color}-300`
+// interpolation wouldn't get picked up, so each badge spells its classes out in full.
+const badgeStyles = {
+	Garden: {
+		icon: 'fa-seedling',
+		label: 'text-emerald-300',
+		iconColor: 'text-emerald-200/50 group-hover:text-emerald-200',
+		hoverTitle: 'group-hover:text-emerald-300',
+		gradient: 'from-emerald-900/40 via-slate-900 to-slate-900',
+	},
+	Lab: {
+		icon: 'fa-flask',
+		label: 'text-amber-300',
+		iconColor: 'text-amber-200/50 group-hover:text-amber-200',
+		hoverTitle: 'group-hover:text-amber-300',
+		gradient: 'from-amber-900/40 via-purple-900/20 to-slate-900',
+	},
+	Thoughts: {
+		icon: 'fa-feather-alt',
+		label: 'text-blue-300',
+		iconColor: 'text-blue-200/50 group-hover:text-blue-200',
+		hoverTitle: 'group-hover:text-blue-300',
+		gradient: 'from-blue-900/40 via-slate-900 to-slate-900',
+	},
+} as const;
+
+const [garden, lab, thoughts] = await Promise.all([
+	getCollection('garden'),
+	getCollection('lab'),
+	getCollection('thoughts'),
+]);
+
+const growingItems = [
+	...garden.map((e) => ({
+		title: e.data.title,
+		description: e.data.description,
+		href: `/garden/${e.slug}/`,
+		badge: 'Garden' as const,
+		heroImage: undefined as string | undefined,
+		date: e.data.updatedDate,
+	})),
+	...lab.map((e) => ({
+		title: e.data.title,
+		description: e.data.description,
+		href: `/lab/${e.slug}/`,
+		badge: 'Lab' as const,
+		heroImage: e.data.heroImage,
+		date: e.data.pubDate,
+	})),
+	...thoughts.map((e) => ({
+		title: e.data.title,
+		description: e.data.description,
+		href: `/thoughts/${e.slug}/`,
+		badge: 'Thoughts' as const,
+		heroImage: e.data.heroImage,
+		date: e.data.pubDate,
+	})),
+]
+	.sort((a, b) => b.date.valueOf() - a.date.valueOf())
+	.slice(0, 4);
 ---
 
 <Layout
@@ -88,47 +150,24 @@ import StarMap from '../components/StarMap';
 				<i class="fas fa-seedling mr-2"></i> Growing Ideas
 			</h2>
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-				
-				<!-- VR Card -->
-				<a href="/topics/vr/" class="bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-2xl flex flex-col h-full cursor-pointer hover:transform hover:-translate-y-2 transition-all duration-300 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:bg-white/10 group">
-					<div class="h-40 w-full rounded-xl mb-4 overflow-hidden relative bg-gradient-to-br from-amber-900/40 via-purple-900/20 to-slate-900">
-						 <div class="absolute bottom-3 left-4 text-xs font-bold tracking-widest text-amber-300 uppercase">VR / Education</div>
-						 <div class="absolute top-3 right-4"><i class="fas fa-vr-cardboard text-amber-200/50 text-xl group-hover:text-amber-200 group-hover:scale-110 transition-all duration-300"></i></div>
-					</div>
-					<h3 class="text-lg font-medium mb-3 text-white leading-snug group-hover:text-amber-300 transition-colors">Immersive Storytelling</h3>
-					<p class="text-slate-400 text-sm flex-grow font-light leading-relaxed">Narrative as the most powerful learning tool.</p>
-				</a>
-
-				<!-- Parkour Card -->
-				<a href="/topics/movement/" class="bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-2xl flex flex-col h-full cursor-pointer hover:transform hover:-translate-y-2 transition-all duration-300 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:bg-white/10 group">
-					<div class="h-40 w-full rounded-xl mb-4 overflow-hidden relative bg-gradient-to-br from-emerald-900/40 via-slate-900 to-slate-900">
-						<div class="absolute bottom-3 left-4 text-xs font-bold tracking-widest text-emerald-300 uppercase">Movement</div>
-						<div class="absolute top-3 right-4"><i class="fas fa-running text-emerald-200/50 text-xl group-hover:text-emerald-200 group-hover:scale-110 transition-all duration-300"></i></div>
-					</div>
-					<h3 class="text-lg font-medium mb-3 text-white leading-snug group-hover:text-emerald-300 transition-colors">Flow State & Parkour</h3>
-					<p class="text-slate-400 text-sm flex-grow font-light leading-relaxed">Cognitive growth through physical obstacles.</p>
-				</a>
-
-				<!-- Embedded Card -->
-				<a href="/topics/embedded/" class="bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-2xl flex flex-col h-full cursor-pointer hover:transform hover:-translate-y-2 transition-all duration-300 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:bg-white/10 group">
-				   <div class="h-40 w-full rounded-xl mb-4 overflow-hidden relative bg-gradient-to-br from-blue-900/40 via-slate-900 to-slate-900">
-					   <div class="absolute bottom-3 left-4 text-xs font-bold tracking-widest text-blue-300 uppercase">Embedded</div>
-					   <div class="absolute top-3 right-4"><i class="fas fa-microchip text-blue-200/50 text-xl group-hover:text-blue-200 group-hover:scale-110 transition-all duration-300"></i></div>
-				   </div>
-				   <h3 class="text-lg font-medium mb-3 text-white leading-snug group-hover:text-blue-300 transition-colors">Tangible Interfaces</h3>
-				   <p class="text-slate-400 text-sm flex-grow font-light leading-relaxed">Haptic ESP32 gloves for digital worlds.</p>
-			   </a>
-
-				<!-- Design Card -->
-				<a href="/topics/design/" class="bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-2xl flex flex-col h-full cursor-pointer hover:transform hover:-translate-y-2 transition-all duration-300 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:bg-white/10 group">
-				   <div class="h-40 w-full rounded-xl mb-4 overflow-hidden relative bg-gradient-to-br from-indigo-900/40 via-purple-900/20 to-slate-900">
-					   <div class="absolute bottom-3 left-4 text-xs font-bold tracking-widest text-indigo-300 uppercase">Design</div>
-					   <div class="absolute top-3 right-4"><i class="fas fa-pen-ruler text-indigo-200/50 text-xl group-hover:text-indigo-200 group-hover:scale-110 transition-all duration-300"></i></div>
-				   </div>
-				   <h3 class="text-lg font-medium mb-3 text-white leading-snug group-hover:text-indigo-300 transition-colors">Cognitive Layouts</h3>
-				   <p class="text-slate-400 text-sm flex-grow font-light leading-relaxed">Interfaces that respect human cognition.</p>
-			   </a>
-
+				{growingItems.map((item) => {
+					const style = badgeStyles[item.badge];
+					return (
+						<a href={item.href} class="bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-2xl flex flex-col h-full cursor-pointer hover:transform hover:-translate-y-2 transition-all duration-300 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:bg-white/10 group">
+							<div
+								class={`h-40 w-full rounded-xl mb-4 overflow-hidden relative bg-gradient-to-br ${style.gradient}`}
+								style={item.heroImage ? `background-image: url('${item.heroImage}'); background-size: cover; background-position: center;` : undefined}
+							>
+								<div class={`absolute bottom-3 left-4 text-xs font-bold tracking-widest ${style.label} uppercase`}>{item.badge}</div>
+								<div class="absolute top-3 right-4">
+									<i class={`fas ${style.icon} text-xl transition-all duration-300 group-hover:scale-110 ${style.iconColor}`}></i>
+								</div>
+							</div>
+							<h3 class={`text-lg font-medium mb-3 text-white leading-snug transition-colors ${style.hoverTitle}`}>{item.title}</h3>
+							<p class="text-slate-400 text-sm flex-grow font-light leading-relaxed line-clamp-2">{item.description}</p>
+						</a>
+					);
+				})}
 			</div>
 		</div>
 	</main>
