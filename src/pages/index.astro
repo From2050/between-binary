@@ -4,7 +4,10 @@ import Header from '../components/Header.astro';
 import StarMap from '../components/StarMap';
 ---
 
-<Layout title="Between Binary | Digital Garden">
+<Layout
+	title="Between Binary | Digital Garden"
+	description="A digital garden for cultivating immersive tech — VR experiments, embedded systems, parkour logs, and notes on human-centered design."
+>
 	<Header />
 	<main class="relative pt-32 pb-20 px-6 font-sans">
 		<div class="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center min-h-[60vh]">
@@ -26,19 +29,38 @@ import StarMap from '../components/StarMap';
 				
 				<script>
 					const words = ["VR Experiments", "Learning Notes", "Parkour Logs", "System Prototypes"];
-					let i = 0;
-					
-					function typeWriter() {
-						const el = document.getElementById('typed-output');
-						if (el) {
-							el.textContent = words[i];
-							i = (i + 1) % words.length;
+					const el = document.getElementById('typed-output');
+					const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+					if (el && prefersReducedMotion) {
+						el.textContent = words[0];
+					} else if (el) {
+						let wordIndex = 0;
+						let charIndex = 0;
+						let deleting = false;
+
+						function tick() {
+							const word = words[wordIndex];
+							if (!deleting) {
+								charIndex++;
+								el.textContent = word.slice(0, charIndex);
+								if (charIndex === word.length) {
+									deleting = true;
+									setTimeout(tick, 1400);
+									return;
+								}
+							} else {
+								charIndex--;
+								el.textContent = word.slice(0, charIndex);
+								if (charIndex === 0) {
+									deleting = false;
+									wordIndex = (wordIndex + 1) % words.length;
+								}
+							}
+							setTimeout(tick, deleting ? 35 : 65);
 						}
+						tick();
 					}
-					// Initial update
-					typeWriter();
-					// Cycle every 2s
-					setInterval(typeWriter, 2000);
 				</script>
 				<div class="flex space-x-4 pt-6 pointer-events-auto">
 					<a href="/lab/" class="px-8 py-3 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-white font-medium rounded-full transition-all shadow-lg shadow-amber-900/30 tracking-wide flex items-center gap-2">

@@ -16,7 +16,11 @@ const project = Astro.props;
 const { Content } = await project.render();
 ---
 
-<Layout title={`${project.data.title} | Lab`}>
+<Layout
+	title={`${project.data.title} | Lab`}
+	description={project.data.description}
+	ogImage={project.data.heroImage}
+>
 	<Header />
 
 	<main class="pt-32 pb-20 px-6 min-h-screen">

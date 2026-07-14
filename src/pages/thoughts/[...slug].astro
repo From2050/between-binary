@@ -16,7 +16,11 @@ const post = Astro.props;
 const { Content } = await post.render();
 ---
 
-<Layout title={`${post.data.title} | Thoughts`}>
+<Layout
+	title={`${post.data.title} | Thoughts`}
+	description={post.data.description}
+	ogImage={post.data.heroImage}
+>
 	<Header />
 
 	<main class="pt-32 pb-20 px-6 min-h-screen">

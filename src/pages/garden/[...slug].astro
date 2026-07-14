@@ -22,7 +22,10 @@ const stageColors: Record<string, string> = {
 };
 ---
 
-<Layout title={`${note.data.title} | Garden`}>
+<Layout
+	title={`${note.data.title} | Garden`}
+	description={note.data.description}
+>
 	<Header />
 
 	<main class="pt-32 pb-20 px-6 min-h-screen">
