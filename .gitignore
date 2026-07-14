@@ -3,6 +3,11 @@ Thumbs.db
 db.json
 *.log
 node_modules/
-public/
+# Hexo-era output dir — scoped to repo root so Astro's between-binary/public/ (static source assets) can be committed
+/public/
 .deploy*/
 _multiconfig.yml
+
+# Astro build output & generated types
+between-binary/dist/
+between-binary/.astro/
