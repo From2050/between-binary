@@ -250,8 +250,7 @@ export default function StarMap() {
     }, []);
 
     const handleStarClick = useCallback(() => {
-        console.log("Navigating to Civilization Map...");
-        // window.location.href = '/civilization-map';
+        window.location.href = '/lab/civilization-star-map/';
     }, []);
 
     const getTooltipPosition = useCallback((starId: string) => {
