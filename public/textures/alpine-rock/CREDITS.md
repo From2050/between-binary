@@ -1,0 +1,1 @@
+Rock Face — Dario Barresi (processing), Greg Zaal (photography), Poly Haven. CC0. https://polyhaven.com/a/rock_face . Original 2K color, OpenGL normal and roughness maps; verified against official API MD5. Used as surface material on 3D geology, not as a landscape backdrop.

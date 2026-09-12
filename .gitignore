@@ -21,3 +21,6 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Blender automatic backups (keep editable .blend sources)
+*.blend[0-9]*
