@@ -152,3 +152,63 @@ test("lake basin is submerged while all visitor routes remain on the dry shelf",
     }
   }
 });
+
+
+import { OpeningSequence, setOpeningView } from "../src/world/opening.ts";
+test("entry holds before the tilt, reveals the title, then reaches the clearing without moving through geometry", () => {
+  const camera = new THREE.PerspectiveCamera();
+  setOpeningView(camera, false);
+  const welcome = camera.quaternion.clone();
+  const opening = new OpeningSequence(camera, false);
+  assert.ok(camera.quaternion.angleTo(welcome) < 1e-7, "entry must not jump from the welcome view");
+  opening.update(0.8);
+  assert.ok(camera.quaternion.angleTo(welcome) < 1e-7);
+  assert.equal(opening.opacity, 0);
+  opening.update(2.4);
+  assert.ok(opening.opacity > 0.99, "the title must be readable during the reveal");
+  assert.ok(camera.quaternion.angleTo(welcome) > 0.1, "the camera must actually tilt");
+  assert.deepEqual(camera.position.toArray(), [...overview.position]);
+  const resting = new THREE.PerspectiveCamera();
+  setOpeningView(resting, true);
+  opening.update(2.1);
+  assert.ok(camera.quaternion.angleTo(resting.quaternion) < 1e-7);
+  assert.equal(opening.active, true, "title outlasts the camera movement");
+  opening.update(4.2);
+  assert.equal(opening.active, false);
+  assert.equal(opening.opacity, 0);
+});
+
+test("interrupting the entry relinquishes camera ownership and skipping settles at the clearing", () => {
+  const camera = new THREE.PerspectiveCamera();
+  const opening = new OpeningSequence(camera, false);
+  opening.update(2);
+  const interrupted = camera.quaternion.clone();
+  opening.finish(false);
+  opening.update(20);
+  assert.equal(opening.active, false);
+  assert.ok(camera.quaternion.angleTo(interrupted) < 1e-7);
+  const second = new OpeningSequence(camera, false);
+  second.finish();
+  const resting = new THREE.PerspectiveCamera();
+  setOpeningView(resting, true);
+  assert.ok(camera.quaternion.angleTo(resting.quaternion) < 1e-7);
+});
+
+test("reduced motion keeps a readable static title and never restarts camera motion", () => {
+  const camera = new THREE.PerspectiveCamera();
+  const opening = new OpeningSequence(camera, true);
+  const resting = camera.quaternion.clone();
+  for (let i = 0; i < 9; i++) {
+    opening.update(1);
+    assert.equal(opening.opacity, 1);
+    assert.ok(camera.quaternion.angleTo(resting) < 1e-7);
+  }
+  opening.update(1);
+  assert.equal(opening.active, false);
+  const changing = new OpeningSequence(camera, false);
+  changing.update(2);
+  changing.reduceMotion();
+  changing.update(2);
+  assert.ok(camera.quaternion.angleTo(resting) < 1e-7);
+  assert.equal(changing.opacity, 1);
+});

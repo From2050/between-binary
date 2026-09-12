@@ -8,6 +8,7 @@ import {
   type DestinationId,
 } from "./journey";
 import { Soundscape } from "./soundscape";
+import { OpeningSequence, setOpeningView } from "./opening";
 
 type Place = { hitBox: THREE.Mesh; href: string; hint: string; lights: THREE.PointLight[] };
 export function createExploration(
@@ -48,6 +49,9 @@ export function createExploration(
     duration: number;
     done: () => void;
   } | null = null;
+  let opening: OpeningSequence | null = null;
+  const openingLayer = el("opening");
+  const openingTitle = el("world-title");
   const ray = new THREE.Raycaster();
   ray.params.Points = { threshold: 3 };
   const pointer = new THREE.Vector2();
@@ -64,8 +68,7 @@ export function createExploration(
     yaw = e.y;
     pitch = e.x;
   }
-  camera.position.fromArray(overview.position);
-  camera.lookAt(new THREE.Vector3(...overview.target));
+  setOpeningView(camera, paused);
   syncAngles();
   function clearCard() {
     card.hidden = true;
@@ -122,6 +125,7 @@ export function createExploration(
   }
   function visit(id: DestinationId) {
     if (!begun) return;
+    finishOpening();
     selected = id;
     el("return-clearing").hidden = false;
     el<HTMLDetailsElement>("field-guide").open = false;
@@ -160,6 +164,7 @@ export function createExploration(
     );
   }
   function returnToPath() {
+    finishOpening();
     selected = null;
     el<HTMLDetailsElement>("field-guide").open = false;
     announce("Returning to the front clearing…");
@@ -184,17 +189,33 @@ export function createExploration(
       );
     }
   }
+  function finishOpening(settle = true) {
+    if (!opening) return;
+    opening.finish(settle);
+    opening = null;
+    openingLayer.hidden = true;
+    syncAngles();
+    el("wayfinding").hidden = false;
+    announce("Drag to look around. Click the fire or the house. Some stars have stories, too.");
+    // Do not leave keyboard focus on a button that has just disappeared.
+    if (document.activeElement === el("skip-opening")) canvas.focus({ preventScroll: true });
+  }
   function enter(withSound: boolean) {
+    if (begun) return;
     begun = true;
     intro.hidden = true;
+    opening = new OpeningSequence(camera, paused);
+    syncAngles();
+    openingTitle.style.opacity = String(opening.opacity);
+    openingLayer.hidden = false;
     el("world-controls").hidden = false;
-    el("wayfinding").hidden = false;
-    announce(
-      "Drag to look around. Click the fire or the house. Some stars have stories, too.",
-    );
     canvas.focus({ preventScroll: true });
     if (withSound) void toggleSound();
   }
+  el("skip-opening").addEventListener("click", () => {
+    finishOpening();
+    canvas.focus({ preventScroll: true });
+  });
   el("enter-quiet").addEventListener("click", () => enter(false));
   el("enter-sound").addEventListener("click", () => enter(true));
   el("sound-toggle").addEventListener("click", toggleSound);
@@ -215,6 +236,8 @@ export function createExploration(
   pauseButton.addEventListener("click", () => {
     paused = !paused;
     syncPause();
+    if (paused && opening) opening.reduceMotion();
+    if (!begun) setOpeningView(camera, paused);
     if (paused && journey) {
       const j = journey;
       journey = null;
@@ -227,6 +250,8 @@ export function createExploration(
   reduced.addEventListener("change", (e) => {
     paused = e.matches;
     syncPause();
+    if (paused && opening) opening.reduceMotion();
+    if (!begun) setOpeningView(camera, paused);
     if (paused && journey) {
       const j = journey;
       journey = null;
@@ -273,10 +298,12 @@ export function createExploration(
     )
       return;
     e.preventDefault();
+    finishOpening(false);
+    syncAngles();
     journey = null;
     yaw += e.key === "ArrowLeft" ? 0.07 : e.key === "ArrowRight" ? -0.07 : 0;
     pitch += e.key === "ArrowUp" ? 0.05 : e.key === "ArrowDown" ? -0.05 : 0;
-    pitch = Math.max(-0.35, Math.min(1.25, pitch));
+    pitch = Math.max(-0.95, Math.min(1.25, pitch));
     camera.rotation.set(pitch, yaw, 0, "YXZ");
   });
   function pick(x: number, y: number) {
@@ -325,6 +352,7 @@ export function createExploration(
   }
   canvas.addEventListener("pointerdown", (e) => {
     if (!begun) return;
+    finishOpening(false);
     el("star-focus").hidden = true;
     drag = true;
     moved = false;
@@ -334,7 +362,7 @@ export function createExploration(
     tooltip.hidden = true;
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!begun) return;
+    if (!begun || opening) return;
     if (drag) {
       if (Math.hypot(e.clientX - downX, e.clientY - downY) <= 6 && !moved) return;
       if (journey) {
@@ -346,7 +374,7 @@ export function createExploration(
       }
       yaw += (e.clientX - lastX) * 0.003;
       pitch += (e.clientY - lastY) * 0.0025;
-      pitch = Math.max(-0.35, Math.min(1.25, pitch));
+      pitch = Math.max(-0.95, Math.min(1.25, pitch));
       camera.rotation.set(pitch, yaw, 0, "YXZ");
       lastX = e.clientX;
       lastY = e.clientY;
@@ -372,7 +400,7 @@ export function createExploration(
     }
   });
   canvas.addEventListener("click", (e) => {
-    if (!begun || moved) return;
+    if (!begun || moved || opening) return;
     pick(e.clientX, e.clientY);
     if (hover)
       visit(
@@ -391,6 +419,9 @@ export function createExploration(
   let audioTick = 0;
   return {
     dispose() {
+      opening?.finish(false);
+      opening = null;
+      openingLayer.hidden = true;
       sound.dispose();
     },
     get paused() {
@@ -400,6 +431,11 @@ export function createExploration(
       return hover;
     },
     update(dt: number) {
+      if (opening) {
+        opening.update(dt);
+        openingTitle.style.opacity = String(opening.opacity);
+        if (!opening.active) finishOpening();
+      }
       if (journey) {
         journey.age += dt;
         const k = easeJourney(journey.age / journey.duration);

@@ -19,7 +19,15 @@ visitor into a different page.
 - **The sky / Civilization:** 45 shared figures. Each can be selected directly
   in the scene or through a keyboard-accessible selector.
 
-The arrival screen offers sound or silence. Direct object interaction is primary:
+The arrival screen offers sound or silence. Both choices start the original
+`between binary` title reveal: a 0.8-second beat, then a 4.5-second tilt from the
+near ground to the clearing and sky. The title fades in after 1.4 seconds and
+fades out over its 8-second lifespan. The camera stays at visitor eye height;
+it does not fly through geometry. Dragging or arrow keys immediately hand over
+the current view; **Skip introduction** or Escape settles at the clearing.
+Reduced motion retains the title without camera movement or fading. Hiding the
+tab suspends the sequence. Wayfinding appears after it finishes or is skipped.
+Direct object interaction is primary:
 click the fire, the cabin or the visible garden arbor/beds. Hover lights and a
 short contextual hint respond at the object. Bright civilization stars have an
 18 CSS-pixel mouse target (26 on coarse pointers), with a ring and person hint;
