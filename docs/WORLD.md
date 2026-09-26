@@ -39,14 +39,6 @@ yard at (-1, -5), garden behind/east at (-2.4, -23), forest along the sides and 
 An east-side route at x=1 reaches the garden without crossing the cabin. Scene
 coordinates use Y up. Sky, moon and all figures still share one parent rotation.
 
-World startup loads the floor, cabin, forest, wood surfaces, ridge geometry and
-ridge colour before enabling either Enter button. Independent requests run in
-parallel. Ground rocks, low plants and the ridge normal/roughness maps continue
-loading after that point and refine the scene during the opening camera move.
-The base view is fully navigable if one of those optional downloads fails.
-`data-world-*` timings on `<html>` record stages in milliseconds after navigation
-for comparing cold and warm loads without a visible debug overlay.
-
 The cabin, porch, interior workbench/bookshelves, roof, benches, raised beds,
 garden leaves are authored through Blender (`tools/build-world.py`). Windows
 have actual openings and transparent glass; the workshop's single warm light

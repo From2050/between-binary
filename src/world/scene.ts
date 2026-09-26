@@ -19,14 +19,12 @@ import { createExploration } from "./exploration";
 import { createWind, sampleWind } from "./wind";
 import { starDirections } from "./celestial";
 import { addLandscape } from "./landscape";
-import { populateForest, populateForestDetails } from "./forest";
+import { populateForest } from "./forest";
 import { populateUnderstory } from "./understory";
 import { terrainHeight, distToPath } from "./terrain";
 import { addVista } from "./vista";
 
 export async function initWorld() {
-  const markStage = (stage: string) => { document.documentElement.dataset[`world${stage}`] = Math.round(performance.now()).toString(); };
-  markStage("Start");
   let needsRender = true;
   let contextLost = false;
   const smallScreen = window.matchMedia("(max-width: 700px)").matches;
@@ -117,7 +115,6 @@ export async function initWorld() {
   const soilLoader = new THREE.TextureLoader();
   const floorTextures = await Promise.all(["color", "normal", "roughness"].map(name =>
     soilLoader.loadAsync(`/textures/forest-floor/${name}.jpg`)));
-  markStage("Floor");
   floorTextures.forEach(texture => {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -239,12 +236,10 @@ export async function initWorld() {
 
   // ─── Texture loading (AI-generated art lives in public/images/world/) ───
   const loadingEl = document.getElementById("loading")!;
-  let modelReady = false, entryReady = false;
+  let modelReady = false;
   function ready() {
-    if (!modelReady || entryReady) return;
-    entryReady = true;
+    if (!modelReady) return;
     needsRender = true;
-    markStage("Ready");
     loadingEl.classList.add("done");
     const enter = document.getElementById("enter-sound") as HTMLButtonElement;
     enter.disabled = false;
@@ -370,22 +365,7 @@ export async function initWorld() {
     starsGroup.add(halo);
   }
 
-  // Start the cabin, forest and wood downloads while the mountains are loading.
-  // Resolve failures into a result so a fast rejection cannot go unhandled while
-  // addVista is still awaiting its own asset.
-  const decoder = new DRACOLoader().setDecoderPath("/models/decoder/");
-  const modelLoader = new GLTFLoader().setDRACOLoader(decoder);
-  const baseAssets = Promise.all([
-    modelLoader.loadAsync('/models/world/woodland.glb'),
-    modelLoader.loadAsync('/models/world/forest.glb'),
-    Promise.all(['color','normal','roughness'].map(name=>soilLoader.loadAsync(`/textures/weathered-wood/${name}.jpg`))),
-  ]).then(value=>({value}), error=>({error}));
-  const detailAssets = Promise.all([
-    modelLoader.loadAsync('/models/world/ground-details.glb'),
-    modelLoader.loadAsync('/models/world/understory.glb'),
-  ]).then(value=>({value}), error=>({error}));
   const vista=await addVista(scene,starsGroup,smallScreen,moonLight,moonBounce);
-  markStage("Vista");
 
   // ─── Places ───
   type Place = {
@@ -601,17 +581,21 @@ export async function initWorld() {
     );
   }
 
+  const decoder = new DRACOLoader().setDecoderPath("/models/decoder/");
+  const modelLoader = new GLTFLoader().setDRACOLoader(decoder);
   try {
-    const assets=await baseAssets;
-    if ('error' in assets) throw assets.error;
-    const [model,forest,wood]=assets.value;
-    markStage("Models");
+    const [model,forest,details,understory,wood]=await Promise.all([
+      modelLoader.loadAsync('/models/world/woodland.glb'),
+      modelLoader.loadAsync('/models/world/forest.glb'),
+      modelLoader.loadAsync('/models/world/ground-details.glb'),
+      modelLoader.loadAsync('/models/world/understory.glb'),
+      Promise.all(['color','normal','roughness'].map(name=>soilLoader.loadAsync(`/textures/weathered-wood/${name}.jpg`))),
+    ]);
     wood.forEach(texture=>{texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;});
     wood[0].colorSpace=THREE.SRGBColorSpace;
     await vista.useRockSurface();
-    markStage("Rock");
-    populateForest(scene,forest.scene,new THREE.Group(),wind,terrainHeight,smallScreen,object=>vista.reflect(object));
-    markStage("Forest");
+    populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object));
+    populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
     model.scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         object.castShadow = true;
@@ -631,25 +615,11 @@ export async function initWorld() {
       }
     });
     scene.add(model.scene);
-    markStage("House");
     renderer.shadowMap.autoUpdate = true;
     fireLight.shadow.needsUpdate=true;gateLight.shadow.needsUpdate=true;moonLight.shadow.needsUpdate=true;
     renderer.shadowMap.needsUpdate = true;
     modelReady = true;
-    // Litter, rocks and low plants refine the clearing without blocking entry.
-    void detailAssets.then(result=>{
-      if ('error' in result) throw result.error;
-      const [details,understory]=result.value;
-      populateForestDetails(scene,details.scene,terrainHeight);
-      populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
-      markStage("Details");
-      needsRender=true;
-    }).catch(error=>console.warn('Optional world details could not load',error))
-      .finally(()=>decoder.dispose());
-  } catch(error) {
-    void detailAssets.then(()=>decoder.dispose());
-    throw error;
-  }
+  } finally { decoder.dispose(); }
 
   // ─── Fireflies over the open ground ───
   const fireflyCount = smallScreen ? 16 : 28;
@@ -745,10 +715,8 @@ export async function initWorld() {
   }
 
   // Exploration owns camera movement, focus, cards, and audio.
-  markStage("Scene");
   ready();
   const exploration = createExploration(camera, canvas, starsGroup, places);
-  window.addEventListener('world-detail-loaded',()=>{needsRender=true;});
   for (const event of [
     "pointermove",
     "pointerdown",

@@ -42,13 +42,6 @@ export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THRE
       if(distant)reflect?.(instances);
     });
   });
-  populateForestDetails(scene,details,height);
-}
-
-/** Small rocks and stumps may arrive after the first usable clearing. */
-export function populateForestDetails(scene:THREE.Scene,details:THREE.Group,height:(x:number,z:number)=>number) {
-  details.updateMatrixWorld(true);
-  const transform=new THREE.Object3D();
   const stonePlacements:[number,number,number][]=[[-4.3,.8,.48],[-6.8,-2,.7],[-13,-12,.8],
     [6.8,-6,.45],[11.9,-18,.7],[-4.9,-25,.58],[13,-29,.75],[-17,1,1],
     [-11,-33,1],[18,-12,.8],[5.8,6.8,.36],[-9.5,8,.72],[-3,8,.86],[10,5,.8],

@@ -9,13 +9,6 @@ export async function addVista(scene:THREE.Scene,sky:THREE.Group,small:boolean,
   moon:THREE.DirectionalLight,bounce:THREE.LightProbe) {
   const decoder=new DRACOLoader().setDecoderPath('/models/decoder/');
   const loader=new GLTFLoader().setDRACOLoader(decoder);
-  // These independent maps used to start only after every other world model.
-  const textureLoader=new THREE.TextureLoader();
-  const rockColor=textureLoader.loadAsync('/textures/alpine-rock/color.jpg')
-    .then(value=>({value}),error=>({error}));
-  const rockDetails=Promise.all(['normal','roughness'].map(name=>
-    textureLoader.loadAsync(`/textures/alpine-rock/${name}.jpg`)))
-    .then(value=>({value}),error=>({error}));
   let range:THREE.Group;
   try {range=(await loader.loadAsync('/models/world/mountains.glb')).scene;} finally {decoder.dispose();}
   range.name='Three dimensional alpine ridges';scene.add(range);
@@ -28,7 +21,6 @@ export async function addVista(scene:THREE.Scene,sky:THREE.Group,small:boolean,
   reflectedScene.add(new THREE.LightProbe(bounce.sh.clone(),bounce.intensity));
   let mountainMaterial:THREE.MeshStandardMaterial;
   const rockTextures:THREE.Texture[]=[];
-  let disposed=false;
   const water=new Reflector(new THREE.PlaneGeometry(1400,1400),{
     textureWidth:small?384:768,textureHeight:small?256:512,multisample:0,clipBias:.003,
     shader:{
@@ -66,28 +58,13 @@ export async function addVista(scene:THREE.Scene,sky:THREE.Group,small:boolean,
   return {
     reflect(object:THREE.Object3D){reflectedScene.add(object.clone());},
     async useRockSurface(){
-      const colorResult=await rockColor;
-      if ('error' in colorResult) throw colorResult.error;
-      const color=colorResult.value;
-      color.colorSpace=THREE.SRGBColorSpace;
-      color.wrapS=color.wrapT=THREE.RepeatWrapping;color.anisotropy=4;
-      // Small maps keep shader defines stable until the detailed maps arrive.
-      const flatNormal=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1);
-      const flatRoughness=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1);
-      flatNormal.needsUpdate=flatRoughness.needsUpdate=true;
-      rockTextures.push(color,flatNormal,flatRoughness);
-      mountainMaterial=new THREE.MeshStandardMaterial({map:color,normalMap:flatNormal,
-        roughnessMap:flatRoughness,roughness:.95,color:0xffffff,fog:false});
-      void rockDetails.then(result=>{
-        if ('error' in result) throw result.error;
-        const [normal,roughness]=result.value;
-        if(disposed){normal.dispose();roughness.dispose();return;}
-        for(const texture of [normal,roughness]) {texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=4;}
-        rockTextures.push(normal,roughness);
-        mountainMaterial.normalMap=normal;mountainMaterial.roughnessMap=roughness;
-        mountainMaterial.needsUpdate=true;
-        window.dispatchEvent(new Event('world-detail-loaded'));
-      }).catch(error=>console.warn('Optional ridge surface could not load',error));
+      const textures=await Promise.all(['color','normal','roughness'].map(name=>
+        new THREE.TextureLoader().loadAsync(`/textures/alpine-rock/${name}.jpg`)));
+      textures[0].colorSpace=THREE.SRGBColorSpace;
+      for(const texture of textures){texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=4;}
+      rockTextures.push(...textures);
+      mountainMaterial=new THREE.MeshStandardMaterial({map:textures[0],normalMap:textures[1],
+        roughnessMap:textures[2],roughness:.95,color:0xffffff,fog:false});
       mountainMaterial.normalScale.set(.7,.7);
       mountainMaterial.onBeforeCompile=shader=>{
         shader.vertexShader='varying vec3 vRidgePosition;varying vec3 vRidgeNormal;\n'+shader.vertexShader;
@@ -110,7 +87,7 @@ export async function addVista(scene:THREE.Scene,sky:THREE.Group,small:boolean,
       });
     },
     update(time:number){(water.material as THREE.ShaderMaterial).uniforms.uTime.value=time;},
-    dispose(){disposed=true;water.dispose();water.geometry.dispose();
+    dispose(){water.dispose();water.geometry.dispose();
       range.traverse(node=>{if(node instanceof THREE.Mesh)node.geometry.dispose();});
       mountainMaterial?.dispose();rockTextures.forEach(texture=>texture.dispose());},
   };
