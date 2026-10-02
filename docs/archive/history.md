@@ -76,6 +76,16 @@ We didn't just want a static image.
 
 ---
 
+## 🌌 2026-10-02: World Loading, Near to Far
+
+The World entrance originally waited for distant mountain geometry and about 8.1 MB of alpine rock textures before visitors could enter. A previous attempt to open the button earlier was reverted because the nearby clearing still looked unfinished. The design requirement is that the cabin, ground, fire ring, trees, plants, and their materials are present when entry becomes available.
+
+The nearby models and textures now begin loading alongside the ground maps. Three small procedural ridges establish the distant horizon and its lake reflection immediately. After the nearby scene is ready, the authored 3D mountain mesh loads and fades in over 1.8 seconds. Procedural rock and snow shading replaces the large alpine texture set. The mountains retain their 3D form without making the distant detail part of the entry gate. The implementation and profiling markers are described in `docs/WORLD.md`.
+
+We tested the old and new builds on separate Cloudflare Pages preview domains on 2026-10-02. The baseline build changed only to record the first entry-ready time. Two cold, real-network transfers measured **6.09 and 3.94 seconds** for the baseline versus **4.55 and 2.11 seconds** for the new build: reductions of **1.53 and 1.83 seconds**. At entry, transferred resources fell from about **26.15 MB** to **17.73 MB**; the completed new scene transferred about **18.05 MB**. The distant mountain finished fading in at **7.53 and 4.41 seconds**. These are two observed visits, not a universal loading-time guarantee; network conditions varied substantially between them.
+
+---
+
 ## 🔮 Unfinished Thoughts & Future Roadmap
 *Ideas we touched on but haven't fully built yet.*
 
