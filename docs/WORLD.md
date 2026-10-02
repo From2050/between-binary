@@ -27,6 +27,12 @@ it does not fly through geometry. Dragging or arrow keys immediately hand over
 the current view; **Skip introduction** or Escape settles at the clearing.
 Reduced motion retains the title without camera movement or fading. Hiding the
 tab suspends the sequence. Wayfinding appears after it finishes or is skipped.
+During an uncached load, the HTML shell immediately shows a lightweight animated
+night illustration and a short status message. The text advances when scene
+initialization begins and when the ground maps have arrived; it does not invent
+a percentage. The illustration fades away as soon as the nearby clearing is
+ready, without delaying either entry button. It is silent, requires no network
+asset, and stays still under reduced-motion preferences.
 Direct object interaction is primary:
 click the fire, the cabin or the visible garden arbor/beds. Hover lights and a
 short contextual hint respond at the object. Bright civilization stars have an

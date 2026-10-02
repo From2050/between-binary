@@ -25,6 +25,8 @@ import { terrainHeight, distToPath } from "./terrain";
 import { addVista } from "./vista";
 
 export async function initWorld() {
+  const loadingText = document.getElementById('loading-text')!;
+  loadingText.textContent = 'Finding the clearing…';
   const profile = new URLSearchParams(location.search).has('profile');
   const mark = (name: string) => {
     if (profile) document.documentElement.dataset[name] = performance.now().toFixed(1);
@@ -140,6 +142,7 @@ export async function initWorld() {
   void nearAssets.catch(() => {});
   const floorTextures = await Promise.all(["color", "normal", "roughness"].map(name =>
     soilLoader.loadAsync(`/textures/forest-floor/${name}.jpg`)));
+  loadingText.textContent = 'Bringing the clearing into focus…';
   floorTextures.forEach(texture => {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -272,6 +275,7 @@ export async function initWorld() {
     markBytes('worldNearBytes');
     needsRender = true;
     loadingEl.classList.add("done");
+    document.getElementById('arrival')!.classList.add('scene-ready');
     const enter = document.getElementById("enter-sound") as HTMLButtonElement;
     enter.disabled = false;
     enter.textContent = "Enter with sound";

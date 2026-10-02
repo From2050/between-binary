@@ -28,6 +28,26 @@ import { destinations } from '../../world/journey';
   </header>
   <main>
     <section id="arrival" aria-labelledby="arrival-title">
+      <div class="arrival-film" aria-hidden="true">
+        <div class="arrival-film-sky"></div>
+        <svg viewBox="0 0 800 440" preserveAspectRatio="xMidYMid slice" focusable="false">
+          <g class="arrival-film-stars">
+            <circle cx="84" cy="92" r="1.1"/><circle cx="162" cy="143" r=".8"/>
+            <circle cx="230" cy="65" r="1.4"/><circle cx="306" cy="118" r=".8"/>
+            <circle cx="374" cy="44" r="1"/><circle cx="428" cy="168" r="1.2"/>
+            <circle cx="501" cy="81" r=".8"/><circle cx="570" cy="137" r="1.5"/>
+            <circle cx="636" cy="52" r=".9"/><circle cx="722" cy="114" r="1.1"/>
+            <circle cx="770" cy="34" r=".7"/><circle cx="690" cy="194" r=".8"/>
+          </g>
+          <circle class="arrival-film-moon-halo" cx="592" cy="111" r="64"/>
+          <circle class="arrival-film-moon" cx="592" cy="111" r="11"/>
+          <path class="arrival-film-ridge arrival-film-ridge-far" d="M0 342 70 313 123 320 204 255 250 278 326 226 391 282 469 241 538 290 615 267 671 296 743 257 800 293V440H0Z"/>
+          <path class="arrival-film-ridge arrival-film-ridge-mid" d="M0 374 77 357 138 327 215 348 293 301 342 320 397 294 473 339 550 311 625 338 707 305 800 350V440H0Z"/>
+          <path class="arrival-film-ridge arrival-film-ridge-near" d="M0 401 72 390 152 375 211 389 288 363 353 378 431 350 504 373 571 357 650 377 729 360 800 383V440H0Z"/>
+          <path class="arrival-film-path" d="M390 440C397 420 420 406 467 390S539 374 573 366"/>
+          <circle class="arrival-film-ember" cx="573" cy="366" r="4"/>
+        </svg>
+      </div>
       <p class="eyebrow">A NIGHT WALK / BETWEEN BINARY</p>
       <h1 id="arrival-title">A little quiet.<br/>A wider <em>world.</em></h1>
       <p class="arrival-copy">Stories by the fire. Ideas taking root.<br/>A light on in the workshop.<br/>Above it all, the people who made this possible.</p>
@@ -36,7 +56,7 @@ import { destinations } from '../../world/journey';
         <button id="enter-quiet" class="quiet" disabled>Enter quietly <span aria-hidden="true">↗</span></button>
       </div>
       <p class="arrival-note">Take your time. There is no right way through.</p>
-      <p id="loading" role="status">Gathering the night…</p>
+      <div id="loading" role="status" aria-live="polite"><span class="loading-trail" aria-hidden="true"></span><span id="loading-text">Gathering the night…</span></div>
     </section>
     <section id="opening" hidden aria-label="Opening sequence">
       <p id="world-title" role="status">between binary</p>
