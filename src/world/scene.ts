@@ -237,8 +237,14 @@ export async function initWorld() {
   // ─── Texture loading (AI-generated art lives in public/images/world/) ───
   const loadingEl = document.getElementById("loading")!;
   let modelReady = false;
+  let profiledReady = false;
   function ready() {
     if (!modelReady) return;
+    if (!profiledReady) {
+      profiledReady = true;
+      document.documentElement.dataset.worldNearReady = performance.now().toFixed(1);
+      document.documentElement.dataset.worldNearBytes = String(performance.getEntriesByType("resource").reduce((sum, resource) => sum + (resource as PerformanceResourceTiming).transferSize, 0));
+    }
     needsRender = true;
     loadingEl.classList.add("done");
     const enter = document.getElementById("enter-sound") as HTMLButtonElement;
