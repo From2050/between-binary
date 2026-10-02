@@ -25,6 +25,17 @@ import { terrainHeight, distToPath } from "./terrain";
 import { addVista } from "./vista";
 
 export async function initWorld() {
+  const profile = new URLSearchParams(location.search).has('profile');
+  const mark = (name: string) => {
+    if (profile) document.documentElement.dataset[name] = performance.now().toFixed(1);
+  };
+  mark('worldStarted');
+  const markBytes = (name: string) => {
+    if (!profile) return;
+    const bytes = performance.getEntriesByType('resource').reduce((sum, resource) =>
+      sum + (resource as PerformanceResourceTiming).transferSize, 0);
+    document.documentElement.dataset[name] = String(bytes);
+  };
   let needsRender = true;
   let contextLost = false;
   const smallScreen = window.matchMedia("(max-width: 700px)").matches;
@@ -113,6 +124,20 @@ export async function initWorld() {
   // Photographic forest floor. One continuous surface with a worn path mask,
   // avoiding overlapping ribbons and rows of identical circular stones.
   const soilLoader = new THREE.TextureLoader();
+  const decoder = new DRACOLoader().setDecoderPath('/models/decoder/');
+  const modelLoader = new GLTFLoader().setDRACOLoader(decoder);
+  // Nearby geometry and the floor begin downloading together. The entry still
+  // waits for every visible clearing asset, including grass and fire-ring stones.
+  const nearAssets = Promise.all([
+    modelLoader.loadAsync('/models/world/woodland.glb'),
+    modelLoader.loadAsync('/models/world/forest.glb'),
+    modelLoader.loadAsync('/models/world/ground-details.glb'),
+    modelLoader.loadAsync('/models/world/understory.glb'),
+    Promise.all(['color','normal','roughness'].map(name =>
+      soilLoader.loadAsync(`/textures/weathered-wood/${name}.jpg`))),
+  ]);
+  // Attach a rejection handler immediately, even if the ground finishes later.
+  void nearAssets.catch(() => {});
   const floorTextures = await Promise.all(["color", "normal", "roughness"].map(name =>
     soilLoader.loadAsync(`/textures/forest-floor/${name}.jpg`)));
   floorTextures.forEach(texture => {
@@ -237,8 +262,14 @@ export async function initWorld() {
   // ─── Texture loading (AI-generated art lives in public/images/world/) ───
   const loadingEl = document.getElementById("loading")!;
   let modelReady = false;
+  let entryReady = false;
+  let loadingTimeout: number | undefined;
   function ready() {
-    if (!modelReady) return;
+    if (!modelReady || entryReady) return;
+    entryReady = true;
+    if (loadingTimeout !== undefined) window.clearTimeout(loadingTimeout);
+    mark('worldNearReady');
+    markBytes('worldNearBytes');
     needsRender = true;
     loadingEl.classList.add("done");
     const enter = document.getElementById("enter-sound") as HTMLButtonElement;
@@ -251,7 +282,7 @@ export async function initWorld() {
     needsRender = true;
   });
   // Textures are enhancements: the route remains usable if an image fails.
-  const loadingTimeout = window.setTimeout(ready, 6000);
+  loadingTimeout = window.setTimeout(ready, 6000);
   window.addEventListener("pagehide", () => clearTimeout(loadingTimeout), {
     once: true,
   });
@@ -365,7 +396,7 @@ export async function initWorld() {
     starsGroup.add(halo);
   }
 
-  const vista=await addVista(scene,starsGroup,smallScreen,moonLight,moonBounce);
+  const vista=addVista(scene,starsGroup,smallScreen,moonLight,moonBounce);
 
   // ─── Places ───
   type Place = {
@@ -581,19 +612,10 @@ export async function initWorld() {
     );
   }
 
-  const decoder = new DRACOLoader().setDecoderPath("/models/decoder/");
-  const modelLoader = new GLTFLoader().setDRACOLoader(decoder);
   try {
-    const [model,forest,details,understory,wood]=await Promise.all([
-      modelLoader.loadAsync('/models/world/woodland.glb'),
-      modelLoader.loadAsync('/models/world/forest.glb'),
-      modelLoader.loadAsync('/models/world/ground-details.glb'),
-      modelLoader.loadAsync('/models/world/understory.glb'),
-      Promise.all(['color','normal','roughness'].map(name=>soilLoader.loadAsync(`/textures/weathered-wood/${name}.jpg`))),
-    ]);
+    const [model,forest,details,understory,wood]=await nearAssets;
     wood.forEach(texture=>{texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;});
     wood[0].colorSpace=THREE.SRGBColorSpace;
-    await vista.useRockSurface();
     populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object));
     populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
     model.scene.traverse((object) => {
@@ -753,6 +775,8 @@ export async function initWorld() {
   let sceneTime = 0,
     frameId = 0,
     lastRender = 0;
+  let detailTransitionSeen = false;
+  window.addEventListener('world-detail-loaded', () => { needsRender = true; });
   function frame(now = performance.now()) {
     if (document.hidden || contextLost) return;
     frameId = requestAnimationFrame(frame);
@@ -764,11 +788,17 @@ export async function initWorld() {
     if (!exploration.paused) sceneTime += dt;
     const t = sceneTime;
     wind.update(t);
-    vista.update(t);
+    const vistaAnimating = vista.update(t);
+    if (vistaAnimating) detailTransitionSeen = true;
+    else if (detailTransitionSeen) {
+      detailTransitionSeen = false;
+      mark('worldDetailFull');
+      markBytes('worldFullBytes');
+    }
     landscape.update(t,exploration.paused?0:dt);
     const breeze=sampleWind(t,FIRE_POS.x,FIRE_POS.z);
 
-    needsRender = false;
+    needsRender = vistaAnimating;
     flameMesh.rotation.y = Math.atan2(
       camera.position.x - FIRE_POS.x,
       camera.position.z - FIRE_POS.z,
@@ -877,4 +907,8 @@ export async function initWorld() {
     if (event.persisted) location.reload();
   });
   frame();
+  void vista.loadDetails().then(() => {
+    mark('worldDetailLoaded');
+    needsRender = true;
+  }).catch(error => console.warn('Distant ridge detail could not load', error));
 }

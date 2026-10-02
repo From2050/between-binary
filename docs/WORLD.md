@@ -129,6 +129,9 @@ represented as a seamless studio loop. No extra noise layer is mixed underneath.
 
 ## Performance and resilience
 
+- The entry now waits for nearby ground maps, cabin, forest, scanned fire-ring stones, grass and wood materials. These requests begin together, before the ground mesh is built.
+- Three procedural ridge outlines and their lake reflections preserve the horizon immediately. The 0.32 MB authored mountain mesh loads after nearby entry is ready, then fades into the outlines. Rock colour, normal and roughness are synthesized from world position and slope instead of downloading 8.11 MB of alpine PBR maps. The final mountain keeps its real 3D shape and moonlight shading.
+- `?profile=1` exposes first nearby-entry and completed-ridge times and received bytes on the document element for repeatable browser timing; it does not alter the scene or gate.
 - World code is dynamically imported; regular content routes do not load Three.js.
 - Pixel ratio is capped at 1.5 on desktop / 1.15 on small screens at initialization.
 - Rendering is capped at 45 / 30 fps respectively; these are caps, not guaranteed frame rates.
@@ -241,13 +244,13 @@ The original procedural sky and approved aurora have been restored. The generate
 panorama and photographic all-sky experiment were rejected in visual review and
 are not loaded by the scene. Their provenance remains archived as design history.
 
-The distant environment uses three real Blender ridge meshes in `mountains.glb`,
-with a reproducible source in `tools/build-mountains.py` / `mountains.blend`.
-They have smooth normals, world-scale tileable CC0 Rock Face PBR maps and a restrained
-height/slope snow mask. Do not repeat photogrammetry UV-atlas textures over these
-surfaces: they are not tileable. Ridged noise frequencies are bounded to the mesh
-sampling density to avoid aliased spikes. The mountain mesh compresses to under
-0.5 MB. It is an authored landscape, not a reconstruction of a surveyed location.
+The distant environment begins with three lightweight procedural ridge outlines.
+The authored Blender ridges in `mountains.glb` load after the nearby clearing is
+ready and replace the outlines with a short fade. Their reproducible source is
+`tools/build-mountains.py` / `mountains.blend`. The mountain mesh compresses to
+under 0.5 MB. Moonlit rock strata, haze and restrained height/slope snow are
+shaded procedurally; the earlier CC0 PBR maps remain archived but are not runtime
+requests. This is an authored landscape, not a surveyed location.
 
 Shoreline fir placements are generated with the same foothill height function and
 stored in `ridge-trees.ts`; 420 / 210 distant trees augment the existing stands.
