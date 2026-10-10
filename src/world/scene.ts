@@ -24,7 +24,6 @@ import { populateUnderstory } from "./understory";
 import { terrainHeight, distToPath } from "./terrain";
 import { addVista } from "./vista";
 import { createRite } from "./rite-world";
-import { riteGround } from "./rite-path.ts";
 
 export async function initWorld() {
   const profile = new URLSearchParams(location.search).has('profile');
@@ -147,7 +146,6 @@ export async function initWorld() {
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   });
   floorTextures[0].colorSpace = THREE.SRGBColorSpace;
-  const inRiteGround=(x:number,z:number)=>x>=riteGround.minX&&x<=riteGround.maxX&&z>=riteGround.minZ&&z<=riteGround.maxZ;
   function makeGround(width: number, depth: number, segX: number, segZ: number, far = false, cx = 0, cz = 0) {
     const geo = new THREE.PlaneGeometry(width,depth,segX,segZ);
     const pos = geo.attributes.position;
@@ -170,10 +168,10 @@ export async function initWorld() {
       const source=geo.index!;const indices=[];
       for(let i=0;i<source.count;i+=3) {
         const ids=[source.getX(i),source.getX(i+1),source.getX(i+2)];
-        // Grids meet exactly at +/-50 and at the walk's ground patch, without z-fighting.
+        // Both grids meet exactly at +/-50, without z-fighting.
         const x=ids.reduce((sum,id)=>sum+pos.getX(id),0)/3;
         const z=ids.reduce((sum,id)=>sum-pos.getY(id),0)/3;
-        if((Math.abs(x)>=50 || Math.abs(z)>=50) && !inRiteGround(x,z)) indices.push(...ids);
+        if(Math.abs(x)>=50 || Math.abs(z)>=50) indices.push(...ids);
       }
       geo.setIndex(indices);
     }
@@ -216,9 +214,6 @@ export async function initWorld() {
     ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
   }
   makeGround(100,100,250,250);
-  // The walk continues along the shore beyond the clearing on the same 0.4 m surface.
-  { const w=riteGround.maxX-riteGround.minX, d=riteGround.maxZ-riteGround.minZ;
-    makeGround(w,d,Math.round(w/.4),Math.round(d/.4),false,(riteGround.minX+riteGround.maxX)/2,(riteGround.minZ+riteGround.maxZ)/2); }
   makeGround(1400,1400,280,280,true);
 
   // ─── Lights ───
@@ -767,7 +762,8 @@ export async function initWorld() {
   const exploration = createExploration(camera, canvas, starsGroup, places);
   // The walk: shares only the fire with the rest of the world.
   const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,
-    mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce});
+    mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce,
+    civ:{points:starsGroup.getObjectByName("civ-stars") as THREE.Points,group:starsGroup}});
   rite.attach(exploration);
   exploration.setRite(rite.hooks);
   for (const event of [

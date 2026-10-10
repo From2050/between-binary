@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { createWind } from './wind';
 import { ridgeTrees } from './ridge-trees.ts';
+import { walkTrees } from './rite-path.ts';
 
 // A sheltered clearing, with uneven groups of trunks rather than a perimeter fence.
 export const forestTrees: [number,number,number,number][] = [
@@ -24,7 +25,7 @@ export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THRE
   forest.children.forEach(variant=>{
     const distant=variant.name==='fir_distance';
     const variantIndex=variant.name.includes('_a_')?0:variant.name.includes('_b_')?1:2;
-    const placements=(distant?distantTrees:forestTrees.filter((p,i)=>p[3]===variantIndex&&(!small||![7,13,14,15,16,18].includes(i)))).filter(([x,z,_scale,_variant,y])=>(y!==undefined||height(x,z)>-4)&&!keepClear(x,z));
+    const placements=(distant?distantTrees:[...forestTrees.filter((p,i)=>!small||![7,13,14,15,16,18].includes(i)),...walkTrees.filter((_,i)=>!small||i%2===0)].filter(p=>p[3]===variantIndex)).filter(([x,z,_scale,_variant,y])=>(y!==undefined||height(x,z)>-4)&&!keepClear(x,z));
     variant.traverse(node=>{
       if(!(node instanceof THREE.Mesh))return;
       const material=(node.material as THREE.MeshStandardMaterial).clone();

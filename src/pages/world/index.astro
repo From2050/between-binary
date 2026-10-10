@@ -69,15 +69,13 @@ import { destinations } from '../../world/journey';
       <input id="rite-name" maxlength="10" autocomplete="off" />
       <button id="rite-begin" class="primary"></button>
     </section>
-    <section id="rite-panel" hidden aria-live="polite" aria-label="The walk">
-      <p id="rite-eyebrow" class="eyebrow"></p>
-      <p id="rite-line"></p>
-      <div class="rite-actions">
-        <button id="rite-act" hidden></button>
-        <button id="rite-next" hidden></button>
-        <button id="rite-leave"></button>
-      </div>
+    <section id="rite-panel" hidden aria-label="The walk">
+      <p id="rite-line" aria-live="polite"></p>
+      <p id="rite-hint"></p>
+      <button id="rite-act" class="sr-only"></button>
+      <button id="rite-next" hidden></button>
     </section>
+    <button id="rite-leave" class="rite-leave" hidden></button>
     <div id="rite-fade" aria-hidden="true"></div>
     <noscript><div class="no-script">Explore <a href="/thoughts/">Thoughts</a>, <a href="/garden/">Garden</a>, or <a href="/lab/">Lab</a>. JavaScript is needed for the landscape.</div></noscript>
   </main>

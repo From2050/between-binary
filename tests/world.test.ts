@@ -138,7 +138,7 @@ test("new forest trunks leave every visitor route open", () => {
 });
 
 
-import { terrainHeight, lakeLevel } from "../src/world/terrain.ts";
+import { terrainHeight, lakeLevel, distToPath } from "../src/world/terrain.ts";
 test("lake basin is submerged while all visitor routes remain on the dry shelf", () => {
   assert.ok(terrainHeight(180,-180)<lakeLevel-2);
   const views=[overview,...Object.values(destinations)];
@@ -214,44 +214,49 @@ test("reduced motion keeps a readable static title and never restarts camera mot
 });
 
 
-import { ritePoints, riteGround } from "../src/world/rite-path.ts";
-import { riteStations, resolveFigure, RITE_LENGTH } from "../src/world/rite.ts";
+import { ritePoints, walkTrees, stationFractions, hillHeight, HILL, distToWalk } from "../src/world/rite-path.ts";
+import { riteStations, resolveFigure, chronologicalSky } from "../src/world/rite.ts";
 import { riteFigures } from "../src/data/riteFigures.ts";
 import { civilizationStars } from "../src/data/civilizationStars.ts";
-import { ridgeTrees } from "../src/world/ridge-trees.ts";
 const riteCurve=()=>new THREE.CatmullRomCurve3(ritePoints.map(([x,z])=>new THREE.Vector3(x,0,z)),false,"centripetal");
-test("the walk stays on the dry shore, clear of the cabin, garden, trunks and the water", () => {
-  const curve=riteCurve();
-  for(let i=0;i<=400;i++) {
-    const p=curve.getPointAt(i/400),floor=terrainHeight(p.x,p.z);
-    assert.ok(floor>lakeLevel+4,"the walk cannot descend into the lake");
-    assert.ok(Math.abs(floor)<.6,"walking surface stays close to foot level");
+test("the walk leaves the fire, passes the cabin and climbs the hill without crossing itself", () => {
+  const curve=riteCurve(),n=500,samples=Array.from({length:n+1},(_,i)=>curve.getPointAt(i/n));
+  let previous=terrainHeight(samples[0].x,samples[0].z);
+  for(let i=0;i<=n;i++) {
+    const p=samples[i],floor=terrainHeight(p.x,p.z);
+    assert.ok(floor>lakeLevel+4,"the walk stays on dry ground");
+    assert.ok(Math.abs(floor-hillHeight(p.x,p.z))<.6,"the path is the hill's surface, flattened only of small bumps");
     assert.ok(!(Math.abs(p.x+8)<5.2&&Math.abs(p.z+16)<6.6),"the walk keeps away from the cabin");
     assert.ok(!(p.x>-5.4&&p.x<.6&&p.z<-18.5&&p.z>-27.5),"the walk keeps away from the garden beds");
-    for(const [x,z,scale] of forestTrees) assert.ok(Math.hypot(p.x-x,p.z-z)>.65*scale+.4,"near trunks leave the walk open");
-    const inDetail=(Math.abs(p.x)<50&&Math.abs(p.z)<50)||(p.x>=riteGround.minX&&p.x<=riteGround.maxX&&p.z>=riteGround.minZ&&p.z<=riteGround.maxZ);
-    assert.ok(inDetail,"every step is on detailed (0.4 m) ground");
+    assert.ok(Math.abs(p.x)<50&&Math.abs(p.z)<50,"every step is on the detailed ground");
+    if(i>=8) { const back=samples[i-8]; assert.ok(Math.abs(floor-terrainHeight(back.x,back.z))/p.distanceTo(back)<.3,"no stretch is steeper than 30% over a stride"); }
+    previous=floor;
   }
-  assert.ok(Math.abs(curve.getLength()-RITE_LENGTH)<3,"station distances are measured along the drawn path");
+  const top=samples[n];
+  assert.ok(terrainHeight(top.x,top.z)>HILL.height-.6,"the walk ends on the summit");
+  for(let i=0;i<=n;i+=5) for(let j=i+60;j<=n;j+=5) assert.ok(samples[i].distanceTo(samples[j])>6,"the spiral's turns stay apart");
 });
-test("walk ground patch shares grid lines with the near and far ground", () => {
-  for(const v of [riteGround.minX,riteGround.maxX,riteGround.minZ,riteGround.maxZ]) {
-    assert.equal(Math.abs(v%5),0,"far grid has 5 m cells");
-    assert.ok(Math.abs(((v+50)/.4)-Math.round((v+50)/.4))<1e-9,"near grid has 0.4 m cells from -50");
+test("the walk's forest leaves the path, the yard and the existing routes open", () => {
+  for(const [x,z] of walkTrees) {
+    assert.ok(distToWalk(x,z)>=3.6,"no trunk on the walk");
+    assert.ok(distToPath(x,z)>3,"no trunk on any path");
+    assert.ok(Math.hypot(x+1,z+5)>6,"the fire yard stays open");
+  }
+  assert.ok(walkTrees.length>20,"the walk passes through trees");
+  const views=[overview,...Object.values(destinations)];
+  for(const start of views) for(const end of views) {
+    if(start===end)continue;
+    const curve=new THREE.CatmullRomCurve3(journeyPoints(start.position,end.position).map(p=>new THREE.Vector3(...p)),false,"centripetal");
+    for(let step=0;step<=120;step++) { const p=curve.getPointAt(step/120); for(const [x,z,scale] of walkTrees) assert.ok(Math.hypot(p.x-x,p.z-z)>.65*scale+.3,"existing journeys stay clear of the walk's trees"); }
   }
 });
-test("stations run in order and every figure reference resolves in both languages", () => {
-  for(let i=1;i<riteStations.length;i++) assert.ok(riteStations[i].s>riteStations[i-1].s+8,"stations are spaced along the walk");
-  assert.ok(riteStations.at(-1)!.s<RITE_LENGTH,"the last station is on the path");
+test("stations follow the demo's eight eras, in order, in both languages", () => {
+  assert.deepEqual(riteStations.map(s=>s.kind),["fire","hand","seed","tablet","axial","heavens","ash","you"]);
+  assert.deepEqual(riteStations.map(s=>s.u),stationFractions);
+  for(let i=1;i<riteStations.length;i++) assert.ok(riteStations[i].u>riteStations[i-1].u);
   for(const station of riteStations) {
-    for(const text of [station.title,station.era,station.act,station.after,...station.lines]) {
-      assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
-    }
-    for(const ref of station.figures) for(const lang of ["en","zh"] as const) {
-      const figure=resolveFigure(ref,lang);
-      assert.ok(figure&&figure.name&&figure.text,`${ref} resolves`);
-      if(lang==="zh"&&ref.startsWith("civ:")) assert.ok(civilizationStars.find(s=>s.id===ref.slice(4))!.zh,`${ref} has Chinese text`);
-    }
+    for(const text of [station.number,station.title,station.era,station.act,station.after,...station.lines]) assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
+    for(const ref of station.figures) for(const lang of ["en","zh"] as const) assert.ok(resolveFigure(ref,lang)?.name,`${ref} resolves`);
   }
 });
 test("walk-only figures are not duplicates of the shared civilization records", () => {
@@ -260,9 +265,8 @@ test("walk-only figures are not duplicates of the shared civilization records", 
   const used=new Set(riteStations.flatMap(s=>s.figures));
   for(const figure of riteFigures) assert.ok(used.has(figure.id),`${figure.id} appears on the walk`);
 });
-test("distant shoreline firs leave the walk corridor open", () => {
-  const curve=riteCurve(),samples=Array.from({length:300},(_,i)=>curve.getPointAt(i/299));
-  const near=ridgeTrees.filter(([x,,z])=>samples.some(p=>Math.hypot(p.x-x,p.z-z)<1.5));
-  // forest.ts filters any placement within 3.6 m of the walk; none should sit on the line itself afterwards
-  for(const [x,,z] of near) assert.ok(samples.some(p=>Math.hypot(p.x-x,p.z-z)<3.6),"trees on the walk are removed by keepClear");
+test("the summit wakes every shared star once, in chronological order", () => {
+  const order=chronologicalSky();
+  assert.equal(new Set(order).size,civilizationStars.length);
+  for(let i=1;i<order.length;i++) assert.ok(parseInt(civilizationStars[order[i]].year)>=parseInt(civilizationStars[order[i-1]].year));
 });

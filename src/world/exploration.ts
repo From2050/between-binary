@@ -413,6 +413,7 @@ export function createExploration(
     canvas.setPointerCapture(e.pointerId);
     tooltip.hidden = true;
     riteHolding = !!rite?.press(aim(e.clientX, e.clientY));
+    if (!riteHolding) rite?.pointer(true);
   });
   canvas.addEventListener("pointermove", (e) => {
     if (!begun || opening) return;
@@ -440,12 +441,15 @@ export function createExploration(
   canvas.addEventListener("pointerup", (e) => {
     drag = false;
     if (riteHolding) { rite?.release(); riteHolding = false; }
+    rite?.pointer(false);
     canvas.style.cursor = "grab";
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
   });
   canvas.addEventListener("pointercancel", () => {
     drag = false;
+    rite?.pointer(false);
+    rite?.release();
     moved = true;
   });
   canvas.addEventListener("pointerleave", () => {

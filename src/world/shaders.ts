@@ -94,15 +94,16 @@ export const skyFragment = `
 export const starsVertex = `
 		attribute vec3 color;
 		attribute float phase;
+		attribute float glow; // woken at the summit of the walk
 		uniform float uTime;
 		uniform float uSize;
 		varying vec3 vColor;
 		varying float vTw;
 		void main() {
-			vColor = color;
+			vColor = color * (1.0 + glow * 1.3);
 			vTw = 0.74 + 0.26 * sin(uTime * (0.5 + fract(phase) * 0.9) + phase * 6.2831);
 			gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-			gl_PointSize = uSize;
+			gl_PointSize = uSize * (1.0 + glow * 1.5);
 		}
 	`;
 
