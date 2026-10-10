@@ -102,7 +102,7 @@ export function addVista(scene:THREE.Scene,sky:THREE.Group,small:boolean,
   let transitionStart=0;
   let disposed=false;
   return {
-    reflect(object:THREE.Object3D){reflectedScene.add(object.clone());},
+    reflect(object:THREE.Object3D){const copy=object.clone();reflectedScene.add(copy);return copy;},
     loadDetails(){
       if(detailPromise)return detailPromise;
       detailPromise=(async()=>{

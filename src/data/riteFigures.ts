@@ -1,0 +1,77 @@
+// ─── Figures who appear only on the walk ───
+// People before the computing era, and the drafters of the 1948 Declaration.
+// Computing pioneers are NOT repeated here: the walk refers to them by id in
+// civilizationStars.ts (`civ:<id>`), which stays the single record for them.
+
+export type Bilingual = { en: string; zh: string };
+export type RiteFigure = {
+  id: string;
+  name: Bilingual;
+  life: Bilingual;
+  text: Bilingual;
+  quote?: Bilingual;
+};
+
+export const riteFigures: RiteFigure[] = [
+  { id: 'painter',
+    name: { en: 'An unnamed ancestor', zh: '無名的先人' },
+    life: { en: 'About 40,000 years ago', zh: '約四萬年前' },
+    text: { en: 'Left a handprint on a cave wall. We do not know their name — only that they were here.', zh: '在岩壁上留下手印的人。我們不知道他的名字，只知道他曾在這裡。' } },
+  { id: 'farmer',
+    name: { en: 'An unnamed farmer', zh: '無名的農人' },
+    life: { en: 'About 12,000 years ago', zh: '約一萬兩千年前' },
+    text: { en: 'The first to bury a seed in the ground, and choose to wait.', zh: '第一個把種子埋進土裡，然後選擇等待的人。' } },
+  { id: 'enheduanna',
+    name: { en: 'Enheduanna', zh: '恩赫杜安娜' },
+    life: { en: 'c. 2285 – 2250 BCE', zh: '約西元前 2285 – 前 2250 年' },
+    text: { en: 'High priestess of Ur in the Akkadian Empire, whose hymns survive. She is the earliest author known by name.', zh: '阿卡德帝國烏爾城的女祭司，留下了讚美詩。她是歷史上第一位留下名字的作者。' } },
+  { id: 'confucius',
+    name: { en: 'Confucius', zh: '孔子' },
+    life: { en: '551 – 479 BCE', zh: '前 551 – 前 479' },
+    text: { en: 'Brought learning to ordinary people, so that knowledge no longer belonged only to nobles.', zh: '把教育帶給平民，讓學問不再只屬於貴族。' },
+    quote: { en: 'Do not impose on others what you do not wish for yourself.', zh: '己所不欲，勿施於人。' } },
+  { id: 'laozi',
+    name: { en: 'Laozi', zh: '老子' },
+    life: { en: 'Dates unknown', zh: '生卒年不詳' },
+    text: { en: 'In the five thousand characters of the Tao Te Ching, weighed how people live with nature and with themselves.', zh: '以五千言的《道德經》，思考人與自然、與自己的關係。' },
+    quote: { en: 'Knowing others is wisdom; knowing yourself is enlightenment.', zh: '知人者智，自知者明。' } },
+  { id: 'buddha',
+    name: { en: 'The Buddha', zh: '佛陀' },
+    life: { en: 'c. 5th century BCE', zh: '約前五世紀' },
+    text: { en: 'Asked, in the Ganges valley, where suffering comes from and how it can end.', zh: '在恆河流域追問：痛苦從何而來，又該如何止息。' },
+    quote: { en: 'Mind is the forerunner of all things.', zh: '心為法本。' } },
+  { id: 'socrates',
+    name: { en: 'Socrates', zh: '蘇格拉底' },
+    life: { en: '470 – 399 BCE', zh: '前 470 – 前 399' },
+    text: { en: 'Questioned everyone in the streets of Athens, testing every certainty through dialogue.', zh: '在雅典街頭不斷提問，用對話檢驗每一件「理所當然」。' },
+    quote: { en: 'The unexamined life is not worth living.', zh: '未經審視的人生，不值得過。' } },
+  { id: 'zhangheng',
+    name: { en: 'Zhang Heng', zh: '張衡' },
+    life: { en: '78 – 139', zh: '78 – 139' },
+    text: { en: 'Han dynasty astronomer who built an armillary sphere and a seismoscope to measure heaven and earth.', zh: '東漢天文學家，製作渾天儀與候風地動儀，用儀器丈量天與地。' } },
+  { id: 'copernicus',
+    name: { en: 'Nicolaus Copernicus', zh: '哥白尼' },
+    life: { en: '1473 – 1543', zh: '1473 – 1543' },
+    text: { en: 'Put the Sun back at the centre in On the Revolutions, and changed our place in the universe.', zh: '在《天體運行論》中把太陽放回中心，改寫了人類在宇宙中的位置。' } },
+  { id: 'galileo',
+    name: { en: 'Galileo Galilei', zh: '伽利略' },
+    life: { en: '1564 – 1642', zh: '1564 – 1642' },
+    text: { en: 'Turned a telescope on Jupiter, saw its moons, and insisted that observation and experiment test the truth.', zh: '舉起望遠鏡看見木星的衛星，堅持用觀察與實驗檢驗真理。' } },
+  { id: 'newton',
+    name: { en: 'Isaac Newton', zh: '牛頓' },
+    life: { en: '1643 – 1727', zh: '1643 – 1727' },
+    text: { en: 'Showed that the force that drops an apple is the one that keeps the Moon in its orbit.', zh: '發現讓蘋果落地與讓月亮運行的，是同一種力。' },
+    quote: { en: 'If I have seen further, it is by standing on the shoulders of giants.', zh: '如果說我看得比較遠，那是因為我站在巨人的肩膀上。' } },
+  { id: 'curie',
+    name: { en: 'Marie Curie', zh: '瑪麗·居禮' },
+    life: { en: '1867 – 1934', zh: '1867 – 1934' },
+    text: { en: 'Discovered polonium and radium. The first woman to win a Nobel Prize, and the only person to win in both physics and chemistry.', zh: '發現釙與鐳。第一位獲得諾貝爾獎的女性，也是唯一在物理與化學兩個領域都得獎的人。' } },
+  { id: 'eleanor',
+    name: { en: 'Eleanor Roosevelt', zh: '愛蓮娜·羅斯福' },
+    life: { en: '1884 – 1962', zh: '1884 – 1962' },
+    text: { en: 'Chaired the UN Commission on Human Rights and saw the Universal Declaration adopted in 1948.', zh: '主持聯合國人權委員會，推動《世界人權宣言》在 1948 年通過。' } },
+  { id: 'pcchang',
+    name: { en: 'P. C. Chang', zh: '張彭春' },
+    life: { en: '1892 – 1957', zh: '1892 – 1957' },
+    text: { en: 'Vice-chair of the commission. He argued the Declaration must not belong to any single civilization, and helped bring the Confucian idea of ren into Article 1 as “conscience”.', zh: '人權委員會副主席。他主張宣言不該只屬於某一種文明，並把儒家「仁」的精神帶進第一條的「良心」。' } },
+];

@@ -12,6 +12,7 @@ export const skyVertex = `
 export const skyFragment = `
 			precision highp float;
 			uniform float uTime;
+			uniform float uDim;
 			varying vec3 vDir;
 			varying vec3 vWorld;
 
@@ -83,6 +84,9 @@ export const skyFragment = `
                 float curtain = fbm(vec3(w.x*4.0, w.z*4.0, uTime*0.045));
                 col += vec3(0.12, 0.75, 0.55) * aBand * pow(g, 3.0) * pow(curtain, 2.5) * 0.32;
 
+				// the walk's war station: smoke over the stars and the aurora
+				col *= 1.0 - uDim * 0.82;
+				col += vec3(0.012, 0.004, 0.002) * uDim * (1.0 - smoothstep(0.0, 0.5, h));
 				gl_FragColor = vec4(col, 1.0);
 			}
 		`;
@@ -105,10 +109,11 @@ export const starsVertex = `
 export const starsFragment = `
 		precision highp float;
 		uniform sampler2D uMap;
+		uniform float uDim;
 		varying vec3 vColor;
 		varying float vTw;
 		void main() {
-			float a = texture2D(uMap, gl_PointCoord).a * vTw;
+			float a = texture2D(uMap, gl_PointCoord).a * vTw * (1.0 - uDim * 0.9);
 			gl_FragColor = vec4(vColor * a, a);
 		}
 	`;

@@ -12,7 +12,7 @@ import { destinations } from '../../world/journey';
   <link rel="icon" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Source+Serif+4:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Source+Serif+4:ital,wght@0,400;1,400&family=Noto+Serif+TC:wght@400;600&family=Noto+Sans+Cuneiform&display=swap" rel="stylesheet" />
   <title>The quiet between | Between Binary</title>
 </head>
 <body>
@@ -21,6 +21,7 @@ import { destinations } from '../../world/journey';
   <header class="world-header">
     <a class="wordmark" href="/"><span>BETWEEN BINARY</span><small>A FIELD OF POSSIBILITIES</small></a>
     <div id="world-controls" hidden>
+      <button id="lang-toggle" aria-label="切換為中文">中文</button>
       <button id="motion-toggle" aria-pressed="false">Pause motion</button>
       <button id="sound-toggle" aria-pressed="false">Sound off</button>
       <label class="volume-label">Volume <input id="volume" type="range" min="0" max="100" value="22" /></label>
@@ -60,6 +61,24 @@ import { destinations } from '../../world/journey';
       <nav aria-label="Explore without 3D"><a href="/thoughts/">Thoughts ↗</a><a href="/garden/">Garden ↗</a><a href="/lab/">Lab ↗</a></nav>
       <button onclick="location.reload()">Try the landscape again</button>
     </section>
+    <section id="rite-start" hidden aria-labelledby="rite-start-title">
+      <p id="rite-start-eyebrow" class="eyebrow"></p>
+      <h2 id="rite-start-title"></h2>
+      <p id="rite-start-text"></p>
+      <label id="rite-name-label" for="rite-name"></label>
+      <input id="rite-name" maxlength="10" autocomplete="off" />
+      <button id="rite-begin" class="primary"></button>
+    </section>
+    <section id="rite-panel" hidden aria-live="polite" aria-label="The walk">
+      <p id="rite-eyebrow" class="eyebrow"></p>
+      <p id="rite-line"></p>
+      <div class="rite-actions">
+        <button id="rite-act" hidden></button>
+        <button id="rite-next" hidden></button>
+        <button id="rite-leave"></button>
+      </div>
+    </section>
+    <div id="rite-fade" aria-hidden="true"></div>
     <noscript><div class="no-script">Explore <a href="/thoughts/">Thoughts</a>, <a href="/garden/">Garden</a>, or <a href="/lab/">Lab</a>. JavaScript is needed for the landscape.</div></noscript>
   </main>
   <div id="star-focus" hidden aria-hidden="true"></div>
@@ -71,6 +90,7 @@ import { destinations } from '../../world/journey';
     <details id="field-guide"><summary>Field guide <span aria-hidden="true">＋</span></summary><nav class="destinations" aria-label="Places along the path">
       <button id="return-path" aria-label="Return to the beginning of the path"><span aria-hidden="true">⌂</span><small>The path</small></button>
       {Object.entries(destinations).map(([id,d])=><button data-destination={id} aria-pressed="false"><span class="destination-number">{d.number}</span><span>{d.name}</span><small>{d.collection}</small></button>)}
+      <button id="rite-guide"><span class="destination-number">05</span><span id="rite-guide-name">The walk</span><small>Rite</small></button>
     </nav>
       <p class="music-credit">Music: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100224" target="_blank" rel="noopener">Friday Morning — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
     </details>

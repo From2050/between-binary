@@ -9,6 +9,7 @@ import {
 } from "./journey";
 import { Soundscape } from "./soundscape";
 import { OpeningSequence, setOpeningView } from "./opening";
+import type { RiteHooks } from "./rite-world";
 
 type Place = { hitBox: THREE.Mesh; href: string; hint: string; lights: THREE.PointLight[] };
 export function createExploration(
@@ -41,6 +42,9 @@ export function createExploration(
     lastY = 0;
   let yaw = 0,
     pitch = 0;
+  let rite: RiteHooks | null = null,
+    riteHolding = false,
+    lastLook = 0;
   let journey: {
     curve: THREE.CatmullRomCurve3;
     from: THREE.Quaternion;
@@ -110,8 +114,21 @@ export function createExploration(
       done,
     };
   }
+  function showInfo(info: { eyebrow: string; title: string; description: string; href?: string; linkText?: string }) {
+    journey = null;
+    tooltip.hidden = true;
+    el("star-focus").hidden = true;
+    clearCard();
+    eyebrow.textContent = info.eyebrow;
+    title.textContent = info.title;
+    description.textContent = info.description;
+    link.hidden = !info.href;
+    if (info.href) { link.href = info.href; link.textContent = info.linkText ?? "Explore ↗"; }
+    card.hidden = false;
+  }
   function showDestination(id: DestinationId) {
     const d = destinations[id];
+    link.hidden = false;
     eyebrow.textContent = `${d.number} / ${d.collection}`;
     title.textContent = d.title;
     description.textContent = d.description;
@@ -154,6 +171,7 @@ export function createExploration(
     eyebrow.textContent = `Civilization / ${star.year}`;
     title.textContent = star.name;
     description.textContent = `${star.role}. ${star.desc}`;
+    link.hidden = false;
     link.href = "/lab/civilization-star-map/";
     link.textContent = "About this constellation ↗";
     card.hidden = false;
@@ -163,9 +181,18 @@ export function createExploration(
       `Selected ${star.name}. Read their contribution in the information panel.`,
     );
   }
-  function returnToPath() {
+  function returnToPath(instant = false) {
     finishOpening();
     selected = null;
+    if (instant) {
+      const ghost = camera.clone();
+      ghost.position.fromArray(overview.position);
+      ghost.lookAt(new THREE.Vector3(...overview.target));
+      camera.position.copy(ghost.position);
+      camera.quaternion.copy(ghost.quaternion);
+      journey = null;
+      syncAngles();
+    }
     el<HTMLDetailsElement>("field-guide").open = false;
     announce("Returning to the front clearing…");
     document
@@ -269,8 +296,13 @@ export function createExploration(
         visit(button.dataset.destination as DestinationId),
       ),
     );
-  el("return-path").addEventListener("click", returnToPath);
-  el("return-clearing").addEventListener("click", returnToPath);
+  el("return-path").addEventListener("click", () => returnToPath());
+  el("return-clearing").addEventListener("click", () => returnToPath());
+  el("rite-guide").addEventListener("click", () => {
+    finishOpening();
+    el<HTMLDetailsElement>("field-guide").open = false;
+    rite?.open();
+  });
   el("close-card").addEventListener("click", () => {
     clearCard();
     canvas.focus({ preventScroll: true });
@@ -286,6 +318,10 @@ export function createExploration(
     ),
   );
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && begun && rite?.active()) {
+      rite.exit();
+      return;
+    }
     if (e.key === "Escape" && begun) {
       returnToPath();
       canvas.focus({ preventScroll: true });
@@ -305,14 +341,30 @@ export function createExploration(
     pitch += e.key === "ArrowUp" ? 0.05 : e.key === "ArrowDown" ? -0.05 : 0;
     pitch = Math.max(-0.95, Math.min(1.25, pitch));
     camera.rotation.set(pitch, yaw, 0, "YXZ");
+    lastLook = performance.now();
   });
-  function pick(x: number, y: number) {
+  function aim(x: number, y: number) {
     pointer.set((x / innerWidth) * 2 - 1, (-y / innerHeight) * 2 + 1);
     ray.setFromCamera(pointer, camera);
+    return ray;
+  }
+  function pick(x: number, y: number) {
+    aim(x, y);
     hover = null;
     starIndex = -1;
+    const riteLabel = rite?.hover(ray);
+    if (riteLabel) {
+      el("star-focus").hidden = true;
+      tooltip.hidden = false;
+      el("tooltip-name").textContent = riteLabel;
+      el("tooltip-role").textContent = "";
+      tooltip.style.left = `${Math.max(12, Math.min(x + 18, innerWidth - 270))}px`;
+      tooltip.style.top = `${Math.min(y + 18, innerHeight - 100)}px`;
+      canvas.style.cursor = "pointer";
+      return;
+    }
     let closest = Infinity;
-    for (const place of places) {
+    if (!rite?.active()) for (const place of places) {
       const hit = ray.intersectObject(place.hitBox, false)[0];
       if (hit && hit.distance < closest) {
         closest = hit.distance;
@@ -360,6 +412,7 @@ export function createExploration(
     downY = lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
     tooltip.hidden = true;
+    riteHolding = !!rite?.press(aim(e.clientX, e.clientY));
   });
   canvas.addEventListener("pointermove", (e) => {
     if (!begun || opening) return;
@@ -372,6 +425,8 @@ export function createExploration(
           "The walk is paused. Look around, or choose a place to continue.",
         );
       }
+      if (riteHolding) { rite?.release(); riteHolding = false; }
+      lastLook = performance.now();
       yaw += (e.clientX - lastX) * 0.003;
       pitch += (e.clientY - lastY) * 0.0025;
       pitch = Math.max(-0.95, Math.min(1.25, pitch));
@@ -384,6 +439,7 @@ export function createExploration(
   });
   canvas.addEventListener("pointerup", (e) => {
     drag = false;
+    if (riteHolding) { rite?.release(); riteHolding = false; }
     canvas.style.cursor = "grab";
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
@@ -401,6 +457,7 @@ export function createExploration(
   });
   canvas.addEventListener("click", (e) => {
     if (!begun || moved || opening) return;
+    if (rite?.click(aim(e.clientX, e.clientY))) return;
     pick(e.clientX, e.clientY);
     if (hover)
       visit(
@@ -418,6 +475,24 @@ export function createExploration(
   window.addEventListener("pagehide", () => sound.dispose(), { once: true });
   let audioTick = 0;
   return {
+    setRite(hooks: RiteHooks) {
+      rite = hooks;
+    },
+    syncAngles,
+    showInfo,
+    clearInfo: clearCard,
+    announce,
+    moveTo: move,
+    returnToPath,
+    get lastLook() {
+      return lastLook;
+    },
+    get looking() {
+      return drag && moved;
+    },
+    get begun() {
+      return begun;
+    },
     dispose() {
       opening?.finish(false);
       opening = null;

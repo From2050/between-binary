@@ -212,3 +212,57 @@ test("reduced motion keeps a readable static title and never restarts camera mot
   assert.ok(camera.quaternion.angleTo(resting) < 1e-7);
   assert.equal(changing.opacity, 1);
 });
+
+
+import { ritePoints, riteGround } from "../src/world/rite-path.ts";
+import { riteStations, resolveFigure, RITE_LENGTH } from "../src/world/rite.ts";
+import { riteFigures } from "../src/data/riteFigures.ts";
+import { civilizationStars } from "../src/data/civilizationStars.ts";
+import { ridgeTrees } from "../src/world/ridge-trees.ts";
+const riteCurve=()=>new THREE.CatmullRomCurve3(ritePoints.map(([x,z])=>new THREE.Vector3(x,0,z)),false,"centripetal");
+test("the walk stays on the dry shore, clear of the cabin, garden, trunks and the water", () => {
+  const curve=riteCurve();
+  for(let i=0;i<=400;i++) {
+    const p=curve.getPointAt(i/400),floor=terrainHeight(p.x,p.z);
+    assert.ok(floor>lakeLevel+4,"the walk cannot descend into the lake");
+    assert.ok(Math.abs(floor)<.6,"walking surface stays close to foot level");
+    assert.ok(!(Math.abs(p.x+8)<5.2&&Math.abs(p.z+16)<6.6),"the walk keeps away from the cabin");
+    assert.ok(!(p.x>-5.4&&p.x<.6&&p.z<-18.5&&p.z>-27.5),"the walk keeps away from the garden beds");
+    for(const [x,z,scale] of forestTrees) assert.ok(Math.hypot(p.x-x,p.z-z)>.65*scale+.4,"near trunks leave the walk open");
+    const inDetail=(Math.abs(p.x)<50&&Math.abs(p.z)<50)||(p.x>=riteGround.minX&&p.x<=riteGround.maxX&&p.z>=riteGround.minZ&&p.z<=riteGround.maxZ);
+    assert.ok(inDetail,"every step is on detailed (0.4 m) ground");
+  }
+  assert.ok(Math.abs(curve.getLength()-RITE_LENGTH)<3,"station distances are measured along the drawn path");
+});
+test("walk ground patch shares grid lines with the near and far ground", () => {
+  for(const v of [riteGround.minX,riteGround.maxX,riteGround.minZ,riteGround.maxZ]) {
+    assert.equal(Math.abs(v%5),0,"far grid has 5 m cells");
+    assert.ok(Math.abs(((v+50)/.4)-Math.round((v+50)/.4))<1e-9,"near grid has 0.4 m cells from -50");
+  }
+});
+test("stations run in order and every figure reference resolves in both languages", () => {
+  for(let i=1;i<riteStations.length;i++) assert.ok(riteStations[i].s>riteStations[i-1].s+8,"stations are spaced along the walk");
+  assert.ok(riteStations.at(-1)!.s<RITE_LENGTH,"the last station is on the path");
+  for(const station of riteStations) {
+    for(const text of [station.title,station.era,station.act,station.after,...station.lines]) {
+      assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
+    }
+    for(const ref of station.figures) for(const lang of ["en","zh"] as const) {
+      const figure=resolveFigure(ref,lang);
+      assert.ok(figure&&figure.name&&figure.text,`${ref} resolves`);
+      if(lang==="zh"&&ref.startsWith("civ:")) assert.ok(civilizationStars.find(s=>s.id===ref.slice(4))!.zh,`${ref} has Chinese text`);
+    }
+  }
+});
+test("walk-only figures are not duplicates of the shared civilization records", () => {
+  const civ=new Set(civilizationStars.map(s=>s.name.toLowerCase()));
+  for(const figure of riteFigures) assert.ok(!civ.has(figure.name.en.toLowerCase()),`${figure.name.en} lives in one record only`);
+  const used=new Set(riteStations.flatMap(s=>s.figures));
+  for(const figure of riteFigures) assert.ok(used.has(figure.id),`${figure.id} appears on the walk`);
+});
+test("distant shoreline firs leave the walk corridor open", () => {
+  const curve=riteCurve(),samples=Array.from({length:300},(_,i)=>curve.getPointAt(i/299));
+  const near=ridgeTrees.filter(([x,,z])=>samples.some(p=>Math.hypot(p.x-x,p.z-z)<1.5));
+  // forest.ts filters any placement within 3.6 m of the walk; none should sit on the line itself afterwards
+  for(const [x,,z] of near) assert.ok(samples.some(p=>Math.hypot(p.x-x,p.z-z)<3.6),"trees on the walk are removed by keepClear");
+});

@@ -12,7 +12,8 @@ export const forestTrees: [number,number,number,number][] = [
   [21,9,1.03,1],[-15,17,.95,2],[8,24,1.08,0],[-5,31,1.15,1],
 ];
 export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THREE.Group,
-  wind:ReturnType<typeof createWind>,height:(x:number,z:number)=>number,small:boolean,reflect?:(object:THREE.Object3D)=>void) {
+  wind:ReturnType<typeof createWind>,height:(x:number,z:number)=>number,small:boolean,reflect?:(object:THREE.Object3D)=>void,
+  keepClear:(x:number,z:number)=>boolean=()=>false) {
   forest.updateMatrixWorld(true);details.updateMatrixWorld(true);
   const transform=new THREE.Object3D();
   const distantTrees: [number,number,number,number,number?][]=Array.from({length:small?26:42},(_,i)=>{
@@ -23,7 +24,7 @@ export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THRE
   forest.children.forEach(variant=>{
     const distant=variant.name==='fir_distance';
     const variantIndex=variant.name.includes('_a_')?0:variant.name.includes('_b_')?1:2;
-    const placements=(distant?distantTrees:forestTrees.filter((p,i)=>p[3]===variantIndex&&(!small||![7,13,14,15,16,18].includes(i)))).filter(([x,z,_scale,_variant,y])=>y!==undefined||height(x,z)>-4);
+    const placements=(distant?distantTrees:forestTrees.filter((p,i)=>p[3]===variantIndex&&(!small||![7,13,14,15,16,18].includes(i)))).filter(([x,z,_scale,_variant,y])=>(y!==undefined||height(x,z)>-4)&&!keepClear(x,z));
     variant.traverse(node=>{
       if(!(node instanceof THREE.Mesh))return;
       const material=(node.material as THREE.MeshStandardMaterial).clone();

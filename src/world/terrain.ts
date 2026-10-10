@@ -1,8 +1,11 @@
 /** Shared physical ground for paths, foliage, rocks and the lakeshore. */
+import { riteSegments } from "./rite-path.ts";
 export const lakeLevel = -5.5;
 export const pathSegments: [number, number, number, number][] = [
   [1, 5, 1, -24], [1, -8, -7, -8], [1, -24, -2.4, -24],
   [1, -2, -1, -5], [1, -1.4, 1.8, -1.4],
+  // The walk leaves the fire on the lake side and follows the shore north-west.
+  [-.2, -5.6, 1.6, -5.4], ...riteSegments,
 ];
 export function smoothstep(a:number,b:number,x:number) {
   const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);

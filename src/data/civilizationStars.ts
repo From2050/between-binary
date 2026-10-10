@@ -14,18 +14,20 @@ export type CivilizationStar = {
     year: string;
     color: string;
     imageUrl?: string;
+    /** Traditional Chinese, used by the bilingual walk in /world/. Optional per record. */
+    zh?: { name: string; role: string; desc: string };
 };
 
 export const civilizationStars: CivilizationStar[] = [
     // ━━━ ERA I: Foundations (1800s) ━━━
-    { id: 'babbage', name: 'Charles Babbage', role: 'Analytical Engine', desc: 'Designed the first general-purpose mechanical computer, a century ahead of its time.', year: '1837', color: '#94A3B8', imageUrl: '' },
-    { id: 'lovelace', name: 'Ada Lovelace', role: 'The First Programmer', desc: 'Visionary who recognized that computers could do more than just calculate numbers.', year: '1843', color: '#F472B6', imageUrl: '' },
+    { id: 'babbage', name: 'Charles Babbage', role: 'Analytical Engine', desc: 'Designed the first general-purpose mechanical computer, a century ahead of its time.', year: '1837', color: '#94A3B8', imageUrl: '', zh: { name: '查爾斯·巴貝奇', role: '分析機', desc: '設計了第一台通用機械計算機，領先他的時代一個世紀。' } },
+    { id: 'lovelace', name: 'Ada Lovelace', role: 'The First Programmer', desc: 'Visionary who recognized that computers could do more than just calculate numbers.', year: '1843', color: '#F472B6', imageUrl: '', zh: { name: '愛達·勒芙蕾絲', role: '第一位程式設計師', desc: '她預見計算機能做的，不只是計算數字。' } },
     { id: 'bell', name: 'Alexander G. Bell', role: 'Telephone', desc: 'Bridged the gap between voice and wire, birthing the age of telecommunication.', year: '1876', color: '#FCA5A5', imageUrl: '' },
-    { id: 'tesla', name: 'Nikola Tesla', role: 'AC Power & Radio', desc: 'Electrified the world with alternating current and laid groundwork for wireless communication.', year: '1891', color: '#67E8F9', imageUrl: '' },
+    { id: 'tesla', name: 'Nikola Tesla', role: 'AC Power & Radio', desc: 'Electrified the world with alternating current and laid groundwork for wireless communication.', year: '1891', color: '#67E8F9', imageUrl: '', zh: { name: '尼古拉·特斯拉', role: '交流電與無線電', desc: '用交流電點亮世界，並為無線通訊奠定基礎。' } },
     { id: 'marconi', name: 'Guglielmo Marconi', role: 'Wireless Telegraphy', desc: 'Proved electromagnetic waves could carry messages across the Atlantic Ocean.', year: '1901', color: '#A5B4FC', imageUrl: '' },
 
     // ━━━ ERA II: Theory & Warfare Computing (1930s–1940s) ━━━
-    { id: 'turing', name: 'Alan Turing', role: 'Father of Comp. Sci.', desc: 'Formalized concepts of algorithm and computation with the Turing Machine.', year: '1936', color: '#60A5FA', imageUrl: '' },
+    { id: 'turing', name: 'Alan Turing', role: 'Father of Comp. Sci.', desc: 'Formalized concepts of algorithm and computation with the Turing Machine.', year: '1936', color: '#60A5FA', imageUrl: '', zh: { name: '艾倫·圖靈', role: '計算機科學之父', desc: '以圖靈機為「演算法」與「計算」下了嚴格的定義。' } },
     { id: 'shannon', name: 'Claude Shannon', role: 'Information Theory', desc: 'Defined the mathematical foundations of digital communication and data encoding.', year: '1948', color: '#38BDF8', imageUrl: '' },
     { id: 'zuse', name: 'Konrad Zuse', role: 'Z3 Computer', desc: 'Built the world\'s first programmable, fully automatic digital computer.', year: '1941', color: '#D4D4D8', imageUrl: '' },
     { id: 'lamarr', name: 'Hedy Lamarr', role: 'Frequency Hopping', desc: 'Co-invented spread-spectrum technology that underpins modern Wi-Fi and Bluetooth.', year: '1942', color: '#F9A8D4', imageUrl: '' },
@@ -33,7 +35,7 @@ export const civilizationStars: CivilizationStar[] = [
     { id: 'bush', name: 'Vannevar Bush', role: 'As We May Think', desc: 'Envisioned the Memex — a hyperlinked knowledge machine that inspired the web.', year: '1945', color: '#FDE68A', imageUrl: '' },
 
     // ━━━ ERA III: Languages & Operating Systems (1950s–1970s) ━━━
-    { id: 'hopper', name: 'Grace Hopper', role: 'Compiler Pioneer', desc: 'Created the first compiler and championed machine-independent programming languages.', year: '1952', color: '#34D399', imageUrl: '' },
+    { id: 'hopper', name: 'Grace Hopper', role: 'Compiler Pioneer', desc: 'Created the first compiler and championed machine-independent programming languages.', year: '1952', color: '#34D399', imageUrl: '', zh: { name: '葛麗絲·霍普', role: '編譯器先驅', desc: '寫出第一個編譯器，推動與機器無關的程式語言。' } },
     { id: 'backus', name: 'John Backus', role: 'FORTRAN', desc: 'Led the design of FORTRAN, the first widely used high-level programming language.', year: '1957', color: '#6EE7B7', imageUrl: '' },
     { id: 'mccarthy', name: 'John McCarthy', role: 'AI & Lisp', desc: 'Coined "Artificial Intelligence" and created Lisp, the language of symbolic reasoning.', year: '1958', color: '#A78BFA', imageUrl: '' },
     { id: 'sutherland', name: 'Ivan Sutherland', role: 'Father of Graphics', desc: 'Created Sketchpad, the forerunner of modern CAD and GUI.', year: '1963', color: '#C4B5FD', imageUrl: '' },
@@ -50,7 +52,7 @@ export const civilizationStars: CivilizationStar[] = [
     { id: 'wozniak', name: 'Steve Wozniak', role: 'Apple I', desc: 'Single-handedly designed the Apple I & II, sparking the personal computer revolution.', year: '1976', color: '#4ADE80', imageUrl: '' },
     { id: 'stallman', name: 'Richard Stallman', role: 'Free Software', desc: 'Founded the GNU project and the FSF, championing software freedom for all.', year: '1983', color: '#F87171', imageUrl: '' },
     { id: 'stroustrup', name: 'Bjarne Stroustrup', role: 'C++', desc: 'Extended C with object-oriented features, creating the language that powers games and systems.', year: '1985', color: '#7DD3FC', imageUrl: '' },
-    { id: 'berners-lee', name: 'Tim Berners-Lee', role: 'Inventor of WWW', desc: 'Created the World Wide Web, giving humanity a shared knowledge space.', year: '1989', color: '#FBBF24', imageUrl: '' },
+    { id: 'berners-lee', name: 'Tim Berners-Lee', role: 'Inventor of WWW', desc: 'Created the World Wide Web, giving humanity a shared knowledge space.', year: '1989', color: '#FBBF24', imageUrl: '', zh: { name: '提姆·柏納茲-李', role: '全球資訊網的發明者', desc: '創造了全球資訊網，讓人類擁有共享的知識空間。' } },
     { id: 'lecun', name: 'Yann LeCun', role: 'Convolutional Nets', desc: 'Pioneered convolutional neural networks that now power image recognition worldwide.', year: '1989', color: '#A78BFA', imageUrl: '' },
 
     // ━━━ ERA V: The Web & Open Source (1990s–2000s) ━━━
@@ -64,10 +66,10 @@ export const civilizationStars: CivilizationStar[] = [
     { id: 'wales', name: 'Jimmy Wales', role: 'Wikipedia', desc: 'Created Wikipedia — the largest free encyclopedia, written collaboratively by humanity.', year: '2001', color: '#D1D5DB', imageUrl: '' },
 
     // ━━━ ERA VI: AI & The Future (2000s–Present) ━━━
-    { id: 'hinton', name: 'Geoffrey Hinton', role: 'Deep Learning', desc: 'Godfather of deep learning — his backpropagation breakthroughs ignited the AI revolution.', year: '2006', color: '#C084FC', imageUrl: '' },
+    { id: 'hinton', name: 'Geoffrey Hinton', role: 'Deep Learning', desc: 'Godfather of deep learning — his backpropagation breakthroughs ignited the AI revolution.', year: '2006', color: '#C084FC', imageUrl: '', zh: { name: '傑佛瑞·辛頓', role: '深度學習', desc: '深度學習的奠基者之一，他在反向傳播上的突破點燃了 AI 革命。' } },
     { id: 'bengio', name: 'Yoshua Bengio', role: 'Neural Networks', desc: 'Advanced deep learning theory and generative models, sharing the Turing Award.', year: '2003', color: '#A78BFA', imageUrl: '' },
     { id: 'nakamoto', name: 'Satoshi Nakamoto', role: 'Bitcoin & Blockchain', desc: 'Published the Bitcoin whitepaper — decentralized trust without central authority.', year: '2008', color: '#F59E0B', imageUrl: '' },
-    { id: 'feifei', name: 'Fei-Fei Li', role: 'ImageNet', desc: 'Created ImageNet, the dataset that benchmarked and accelerated computer vision breakthroughs.', year: '2009', color: '#EC4899', imageUrl: '' },
+    { id: 'feifei', name: 'Fei-Fei Li', role: 'ImageNet', desc: 'Created ImageNet, the dataset that benchmarked and accelerated computer vision breakthroughs.', year: '2009', color: '#EC4899', imageUrl: '', zh: { name: '李飛飛', role: 'ImageNet', desc: '建立 ImageNet 資料集，為電腦視覺的突破訂下基準並加速發展。' } },
     { id: 'hassabis', name: 'Demis Hassabis', role: 'DeepMind & AlphaGo', desc: 'Founded DeepMind, whose AlphaGo defeated the world champion — a watershed moment for AI.', year: '2010', color: '#2DD4BF', imageUrl: '' },
     { id: 'karpathy', name: 'Andrej Karpathy', role: 'Neural Net Educator', desc: 'Democratized deep learning through legendary lectures and open-source implementations.', year: '2015', color: '#FB923C', imageUrl: '' },
     { id: 'amodei', name: 'Dario Amodei', role: 'AI Safety', desc: 'Founded Anthropic to pursue safe, interpretable AI systems that align with human values.', year: '2021', color: '#D4A574', imageUrl: '' },

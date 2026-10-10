@@ -23,6 +23,8 @@ import { populateForest } from "./forest";
 import { populateUnderstory } from "./understory";
 import { terrainHeight, distToPath } from "./terrain";
 import { addVista } from "./vista";
+import { createRite } from "./rite-world";
+import { riteGround } from "./rite-path.ts";
 
 export async function initWorld() {
   const profile = new URLSearchParams(location.search).has('profile');
@@ -145,14 +147,16 @@ export async function initWorld() {
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   });
   floorTextures[0].colorSpace = THREE.SRGBColorSpace;
-  function makeGround(size: number, segments: number, far = false) {
-    const geo = new THREE.PlaneGeometry(size,size,segments,segments);
+  const inRiteGround=(x:number,z:number)=>x>=riteGround.minX&&x<=riteGround.maxX&&z>=riteGround.minZ&&z<=riteGround.maxZ;
+  function makeGround(width: number, depth: number, segX: number, segZ: number, far = false, cx = 0, cz = 0) {
+    const geo = new THREE.PlaneGeometry(width,depth,segX,segZ);
     const pos = geo.attributes.position;
     const uv = geo.attributes.uv;
     const colors = new Float32Array(pos.count*3);
     const wear = new Float32Array(pos.count);
     for (let i=0;i<pos.count;i++) {
-      const x=pos.getX(i), z=-pos.getY(i);
+      const x=pos.getX(i)+cx, z=-pos.getY(i)+cz;
+      pos.setXY(i,x,-z);
       pos.setZ(i,terrainHeight(x,z));
       uv.setXY(i,x/2.6,z/2.6);
       const shade=.55+fbm2(x*.21+8,z*.21+4)*.65;
@@ -166,10 +170,10 @@ export async function initWorld() {
       const source=geo.index!;const indices=[];
       for(let i=0;i<source.count;i+=3) {
         const ids=[source.getX(i),source.getX(i+1),source.getX(i+2)];
-        // Both grids meet exactly at +/-50, without z-fighting.
+        // Grids meet exactly at +/-50 and at the walk's ground patch, without z-fighting.
         const x=ids.reduce((sum,id)=>sum+pos.getX(id),0)/3;
         const z=ids.reduce((sum,id)=>sum-pos.getY(id),0)/3;
-        if(Math.abs(x)>=50 || Math.abs(z)>=50) indices.push(...ids);
+        if((Math.abs(x)>=50 || Math.abs(z)>=50) && !inRiteGround(x,z)) indices.push(...ids);
       }
       geo.setIndex(indices);
     }
@@ -211,8 +215,11 @@ export async function initWorld() {
     const ground=new THREE.Mesh(geo,material);
     ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
   }
-  makeGround(100,250);
-  makeGround(1400,280,true);
+  makeGround(100,100,250,250);
+  // The walk continues along the shore beyond the clearing on the same 0.4 m surface.
+  { const w=riteGround.maxX-riteGround.minX, d=riteGround.maxZ-riteGround.minZ;
+    makeGround(w,d,Math.round(w/.4),Math.round(d/.4),false,(riteGround.minX+riteGround.maxX)/2,(riteGround.minZ+riteGround.maxZ)/2); }
+  makeGround(1400,1400,280,280,true);
 
   // ─── Lights ───
   // Three direct sources. A low-energy light probe approximates their missing
@@ -244,7 +251,7 @@ export async function initWorld() {
   const SKY_SPIN = 0.0018;
   const starsGroup = new THREE.Group();
   scene.add(starsGroup);
-  const skyUniforms = { uTime: { value: 0 } };
+  const skyUniforms = { uTime: { value: 0 }, uDim: { value: 0 } };
   {
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -323,6 +330,7 @@ export async function initWorld() {
       uTime: { value: 0 },
       uMap: { value: glowTexture },
       uSize: { value: 10 * renderer.getPixelRatio() },
+      uDim: { value: 0 },
     },
     vertexShader: starsVertex,
     fragmentShader: starsFragment,
@@ -397,6 +405,9 @@ export async function initWorld() {
   }
 
   const vista=addVista(scene,starsGroup,smallScreen,moonLight,moonBounce);
+
+  let riteRock: {geometry:THREE.BufferGeometry;material:THREE.Material|THREE.Material[]}|undefined;
+  let riteGrass: {geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial}|undefined;
 
   // ─── Places ───
   type Place = {
@@ -616,8 +627,23 @@ export async function initWorld() {
     const [model,forest,details,understory,wood]=await nearAssets;
     wood.forEach(texture=>{texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;});
     wood[0].colorSpace=THREE.SRGBColorSpace;
-    populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object));
+    populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object),(x,z)=>distToPath(x,z)<3.6);
     populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
+    // Source meshes the walk reuses: one scanned rock (normalised to 1 m) and one grass tuft.
+    details.scene.children.find(n=>/rock/.test(n.name))?.traverse(node=>{
+      if(riteRock||!(node instanceof THREE.Mesh))return;
+      const geo=node.geometry.clone().applyMatrix4(node.matrixWorld);geo.computeBoundingBox();
+      const box=geo.boundingBox!,center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
+      geo.translate(-center.x,-box.min.y,-center.z);const k=1/Math.max(size.x,size.y,size.z);geo.scale(k,k,k);geo.computeVertexNormals();
+      riteRock={geometry:geo,material:node.material};
+    });
+    understory.scene.children.find(n=>!n.name.startsWith("fern")&&!n.name.includes("large"))?.traverse(node=>{
+      if(riteGrass||!(node instanceof THREE.Mesh))return;
+      const geo=node.geometry.clone().applyMatrix4(node.matrixWorld);geo.computeBoundingBox();
+      const box=geo.boundingBox!,center=box.getCenter(new THREE.Vector3());geo.translate(-center.x,-box.min.y,-center.z);geo.scale(1.5,1.5,1.5);
+      const material=(node.material as THREE.MeshStandardMaterial).clone();material.alphaTest=.42;material.transparent=false;material.side=THREE.DoubleSide;
+      riteGrass={geometry:geo,material};
+    });
     model.scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         object.castShadow = true;
@@ -739,6 +765,11 @@ export async function initWorld() {
   // Exploration owns camera movement, focus, cards, and audio.
   ready();
   const exploration = createExploration(camera, canvas, starsGroup, places);
+  // The walk: shares only the fire with the rest of the world.
+  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,
+    mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce});
+  rite.attach(exploration);
+  exploration.setRite(rite.hooks);
   for (const event of [
     "pointermove",
     "pointerdown",
@@ -784,6 +815,7 @@ export async function initWorld() {
     lastRender = now;
     const dt = Math.min(clock.getDelta(), 0.08);
     exploration.update(dt);
+    if (rite.update(dt, sceneTime)) needsRender = true;
     if (exploration.paused && !needsRender) return;
     if (!exploration.paused) sceneTime += dt;
     const t = sceneTime;

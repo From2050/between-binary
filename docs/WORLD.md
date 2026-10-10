@@ -272,3 +272,36 @@ The campfire picking volume tapers from the stone ring toward the flame. A full
 box used to intercept clicks aimed at the cabin behind it. The workshop approach
 uses an east-side waypoint before crossing in front of the porch, leaving benches
 and the building clear. Narrow layouts retain the cabin window in the starting view.
+
+## The walk — a rite of passage (October 2026)
+
+The Civilization Star Map article describes a walkway whose path traces human progress, "closer to a rite of passage". `/world/` now contains that walk. It is deliberately **separate from the homestead**: only the campfire is shared. The cabin, garden and workshop keep their original meaning, and a later review can decide whether any of them should join the walk.
+
+**Arrive → take the fire → walk → become a star → look back.**
+
+- A torch stands beside the fire ring (0.55, -6.4), its head smouldering. Clicking it, or choosing **05 The walk** in the field guide, opens a short card with an optional name field.
+- Holding the torch in the fire lights it. From then on the visitor carries it (lower right of the view), and every stone cairn along the shore catches fire as they pass. Looking back at the end, the whole shore is lit.
+- Ten places along a 129 m shoreline path (`rite-path.ts`): fire, handprint (40,000 years ago), seed (12,000), writing (3200 BCE), awakening (500 BCE), the heavens (1543), machines (1837), ashes (1914–1948), connection (1969–today), you.
+- Each place has one act, done by clicking or holding the object in the scene, or with the visible action button: press a hand to the rock, plant a seed (golden grain grows outward), press your name into a clay tablet beneath cuneiform, wake four stars, return the Sun to the centre of an armillary sphere, turn a difference engine's figure wheels, light a candle in the ruins, wake a small network.
+- **The walk's stars** hang above their places, so from the fire they trace a line over the shore, the path's reflection in the sky. Each star can be touched at any time. Waking one sends a brief beam to its place, where a figure of light remains, and adds it to a constellation.
+- In the ashes the sky, aurora, stars, moonlight and the visitor's torch dim almost to nothing (`uDim` in the sky and star shaders, fog and light intensities). Lighting the candle brings them back and reveals Article 1 of the Universal Declaration.
+- At the shore point the visitor holds a hand to a stone. Their own star rises, joins the constellation and appears in the lake reflection. The camera then turns back toward the fire. **Return to the fire** fades back to the clearing; the star stays in the sky (localStorage) and can be clicked later.
+
+**Bilingual.** All walk text is in English and Traditional Chinese (`rite.ts`, `riteFigures.ts`). The header's 中文 / EN button switches it; the default follows the browser language and the choice is remembered. Other world UI remains English.
+
+**Figures.** Computing pioneers are referenced by id (`civ:turing`) from `civilizationStars.ts`, which gained an optional `zh` field for those records; nothing is copied. People who are not in that record (an unnamed ancestor and farmer, Enheduanna, the Axial-age thinkers, Zhang Heng, Copernicus, Galileo, Newton, Marie Curie, Eleanor Roosevelt, P. C. Chang) live in `src/data/riteFigures.ts`. A test checks there is no overlap.
+
+**Ground and trees.** The walk is part of `pathSegments`, so terrain flattening, the worn-path mask and grass clearance follow it automatically. Beyond the original ±50 m clearing, a second 0.4 m ground patch (`riteGround`, x -70…0, z -130…-50) carries it. The patch bounds lie on both the near and far grid lines. Distant and shoreline firs within 3.6 m of the walk are not placed.
+
+**Light.** Approved additions: the carried torch has its own light; 2–3 pooled point lights follow the nearest lit cairns; the candle has a small light. None cast shadows. Moon shadows follow the walker while on the walk.
+
+**Sound.** Not yet changed; the recorded piano continues. Sound changes are approved and remain open work.
+
+| File | Responsibility |
+| --- | --- |
+| `src/world/rite-path.ts` | Walk polyline and the extra ground patch (no three.js, imported by terrain and tests) |
+| `src/world/rite.ts` | Station content, UI strings, figure lookup; pure and tested |
+| `src/world/rite-world.ts` | Torch, cairns, station objects, the walk's stars and figures, walking, narration, DOM |
+| `src/data/riteFigures.ts` | Bilingual records for figures who appear only on the walk |
+
+Exploration delegates pointer hover, press and click to the walk first (`setRite`). Escape and **Leave the walk** fade back to the clearing. `?ritedebug` exposes the walk's state on `window.__rite` for browser tests.

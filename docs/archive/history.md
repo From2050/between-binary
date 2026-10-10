@@ -86,6 +86,12 @@ We tested the old and new builds on separate Cloudflare Pages preview domains on
 
 ---
 
+## 🔥 2026-10-10: The Walk
+
+The rite of passage described in the Civilization Star Map article now exists inside `/world/`. A torch beside the fire starts a ten-station walk along the lake shore, from a handprint 40,000 years ago to the visitor's own star. Only the fire is shared with the homestead; everything on the walk is new, bilingual (English / Traditional Chinese), and can be completed by pointer, touch or keyboard. Details are in `docs/WORLD.md` (The walk) and the plan in `docs/RITE_PLAN.md`.
+
+---
+
 ## 🔮 Unfinished Thoughts & Future Roadmap
 *Ideas we touched on but haven't fully built yet.*
 
