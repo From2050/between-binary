@@ -671,6 +671,8 @@ html[data-rite-lang="zh"] #rite-line, html[data-rite-lang="zh"] #rite-start h2 {
 }
 #rite-line.show { animation: rite-in 1.2s ease both; }
 @keyframes rite-in { from { opacity: 0; filter: blur(4px); transform: translateY(6px); } to { opacity: 1; filter: none; transform: none; } }
+#rite-year { margin: 0 0 8px; font-size: 11px; letter-spacing: .24em; color: #d8c7a2; text-shadow: 0 1px 8px #000; min-height: 1.4em; opacity: 0; transition: opacity 1.2s ease; font-variant-numeric: tabular-nums; }
+#rite-year.on { opacity: .82; }
 #rite-hint { margin: 0; font-size: 11px; letter-spacing: .14em; color: #cdbf9f; text-shadow: 0 1px 6px #000; min-height: 1.4em; }
 #rite-next { pointer-events: auto; margin-top: 16px; font-size: 12px; padding: 12px 20px; min-height: 44px; border-radius: 3px; background: #dbbb87; color: #1a1c1d; }
 .rite-leave { position: fixed; z-index: 4; left: 40px; top: 92px; font-size: 11px; color: #aeb7b8; padding: 10px 0; border-bottom: 1px solid #ffffff26; }

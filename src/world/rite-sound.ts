@@ -37,12 +37,12 @@ export function createRiteSound() {
   return {
     /** call from a click/keydown so the context may start */
     wake() { const c = ensure(); if (c && c.state === "suspended") void c.resume(); },
-    update(torch: number, ash: number, dt: number) {
+    /** torch: how brightly you carry fire; ash: the burnt country; open: out of the trees, where the wind is louder */
+    update(torch: number, ash: number, open: number) {
       if (!ctx) return; const on = enabled() ? 1 : 0, t = ctx.currentTime;
       master.gain.setTargetAtTime(on * .9, t, .4);
       crackle.gain.setTargetAtTime(torch * .22, t, .2);
-      wind.gain.setTargetAtTime(.05 + ash * .22, t, .8); windFilter.Q.value = .6 + ash * .8;
-      void dt;
+      wind.gain.setTargetAtTime(.05 + open * .05 + ash * .22, t, 1.6); windFilter.Q.value = .6 + ash * .8;
     },
     step(up: number) {
       if (!ctx || !enabled()) return; const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noise;

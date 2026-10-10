@@ -214,35 +214,45 @@ test("reduced motion keeps a readable static title and never restarts camera mot
 });
 
 
-import { ritePoints, walkTrees, stationFractions, hillHeight, HILL, distToWalk } from "../src/world/rite-path.ts";
-import { riteStations, resolveFigure, chronologicalSky } from "../src/world/rite.ts";
+import { ritePoints, riteLength, walkTrees, ashTrunks, stationMeters, THRESHOLD, pointAt, distToWalk, AXIS } from "../src/world/rite-path.ts";
+import { riteStations, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt } from "../src/world/rite.ts";
 import { riteFigures } from "../src/data/riteFigures.ts";
 import { civilizationStars } from "../src/data/civilizationStars.ts";
-const riteCurve=()=>new THREE.CatmullRomCurve3(ritePoints.map(([x,z])=>new THREE.Vector3(x,0,z)),false,"centripetal");
-test("the walk leaves the fire, passes the cabin and climbs the hill without crossing itself", () => {
-  const curve=riteCurve(),n=500,samples=Array.from({length:n+1},(_,i)=>curve.getPointAt(i/n));
-  let previous=terrainHeight(samples[0].x,samples[0].z);
-  for(let i=0;i<=n;i++) {
-    const p=samples[i],floor=terrainHeight(p.x,p.z);
+test("the walk is a long road away from home that never doubles back", () => {
+  assert.ok(riteLength>500,"the road leads more than half a kilometre from the fire");
+  const end=pointAt(riteLength);
+  assert.ok(Math.hypot(end[0]+1,end[1]+5)>500,"the end of the road is far from home, not circled back");
+  let previous=-Infinity;
+  for(let s=0;s<=riteLength;s+=1) {
+    const [x,z]=pointAt(s),floor=terrainHeight(x,z);
     assert.ok(floor>lakeLevel+4,"the walk stays on dry ground");
-    assert.ok(Math.abs(floor-hillHeight(p.x,p.z))<.6,"the path is the hill's surface, flattened only of small bumps");
-    assert.ok(!(Math.abs(p.x+8)<5.2&&Math.abs(p.z+16)<6.6),"the walk keeps away from the cabin");
-    assert.ok(!(p.x>-5.4&&p.x<.6&&p.z<-18.5&&p.z>-27.5),"the walk keeps away from the garden beds");
-    assert.ok(Math.abs(p.x)<50&&Math.abs(p.z)<50,"every step is on the detailed ground");
-    if(i>=8) { const back=samples[i-8]; assert.ok(Math.abs(floor-terrainHeight(back.x,back.z))/p.distanceTo(back)<.3,"no stretch is steeper than 30% over a stride"); }
-    previous=floor;
+    assert.ok(!(Math.abs(x+8)<5.2&&Math.abs(z+16)<6.6),"the walk keeps away from the cabin");
+    assert.ok(!(x>-5.4&&x<.6&&z<-18.5&&z>-27.5),"the walk keeps away from the garden beds");
+    const along=(x-AXIS.x)*AXIS.dx+(z-AXIS.z)*AXIS.dz;
+    if(s>20) { assert.ok(along>previous-.01,"every step goes further from home"); previous=along; }
+    if(s>=8) { const [bx,bz]=pointAt(s-8); assert.ok(Math.abs(floor-terrainHeight(bx,bz))/8<.18,"no stretch is steeper than 18% over a stride"); }
   }
-  const top=samples[n];
-  assert.ok(terrainHeight(top.x,top.z)>HILL.height-.6,"the walk ends on the summit");
-  for(let i=0;i<=n;i+=5) for(let j=i+60;j<=n;j+=5) assert.ok(samples[i].distanceTo(samples[j])>6,"the spiral's turns stay apart");
+  const top=terrainHeight(end[0],end[1]);
+  assert.ok(top>15,"the road ends high enough to look back along it");
+  for(const d of [20,60]) { const [x,z,tx,tz]=pointAt(riteLength); assert.ok(terrainHeight(x+tx*d,z+tz*d)<top,"beyond the crest the land falls away"); }
+  assert.ok(Math.abs(ritePoints.length-1-Math.ceil(riteLength))<1);
 });
-test("the walk's forest leaves the path, the yard and the existing routes open", () => {
-  for(const [x,z] of walkTrees) {
-    assert.ok(distToWalk(x,z)>=3.6,"no trunk on the walk");
-    assert.ok(distToPath(x,z)>3,"no trunk on any path");
+test("stations are spread along the road, with the threshold before the first", () => {
+  assert.equal(stationMeters[0],0);
+  assert.ok(THRESHOLD>10&&THRESHOLD<stationMeters[1]);
+  for(let i=1;i<stationMeters.length;i++) assert.ok(stationMeters[i]-stationMeters[i-1]>60,"each station is a walk away from the last");
+  assert.equal(stationMeters[stationMeters.length-1],riteLength);
+});
+test("the road's forest leaves the road, the yard and the existing routes open", () => {
+  for(const [x,z] of [...walkTrees,...ashTrunks]) {
+    assert.ok(distToWalk(x,z)>=2.6,"no trunk on the road");
+    assert.ok(distToPath(x,z)>2.5,"no trunk on any path");
     assert.ok(Math.hypot(x+1,z+5)>6,"the fire yard stays open");
   }
-  assert.ok(walkTrees.length>20,"the walk passes through trees");
+  for(const [x,z] of walkTrees) for(const [fx,fz] of forestTrees) assert.ok(Math.hypot(x-fx,z-fz)>2.8,"no fir grows inside another");
+  const forest=walkTrees.filter(t=>t[4]<150).length,open=walkTrees.filter(t=>t[4]>210&&t[4]<430).length;
+  assert.ok(forest>open*1.5,"the forest is dense and the open country is open");
+  assert.ok(ashTrunks.length>20,"the burnt country has its dead trees");
   const views=[overview,...Object.values(destinations)];
   for(const start of views) for(const end of views) {
     if(start===end)continue;
@@ -250,12 +260,21 @@ test("the walk's forest leaves the path, the yard and the existing routes open",
     for(let step=0;step<=120;step++) { const p=curve.getPointAt(step/120); for(const [x,z,scale] of walkTrees) assert.ok(Math.hypot(p.x-x,p.z-z)>.65*scale+.3,"existing journeys stay clear of the walk's trees"); }
   }
 });
+test("distance is time: the year runs from deep time to today along the road", () => {
+  assert.equal(yearsAgoAt(THRESHOLD-1),-1);
+  let previous=Infinity;
+  for(let s=THRESHOLD;s<=riteLength;s+=2) { const y=yearsAgoAt(s); assert.ok(y<=previous+1e-6,"time only moves forward"); previous=y; }
+  assert.equal(yearLabel(yearsAgoAt(riteLength),"en"),"Today");
+  assert.match(yearLabel(yearsAgoAt(standAt(1)),"zh"),/約 40,000 年前/);
+  assert.match(yearLabel(yearsAgoAt(standAt(3)),"en"),/^3,200 BCE$/);
+  assert.match(yearLabel(yearsAgoAt(standAt(5)),"zh"),/^西元 1543 年$/);
+  assert.match(yearLabel(yearsAgoAt(standAt(6)),"en"),/^1914 CE$/);
+});
 test("stations follow the demo's eight eras, in order, in both languages", () => {
   assert.deepEqual(riteStations.map(s=>s.kind),["fire","hand","seed","tablet","axial","heavens","ash","you"]);
-  assert.deepEqual(riteStations.map(s=>s.u),stationFractions);
-  for(let i=1;i<riteStations.length;i++) assert.ok(riteStations[i].u>riteStations[i-1].u);
+  assert.deepEqual(riteStations.map(s=>s.s),stationMeters);
   for(const station of riteStations) {
-    for(const text of [station.number,station.title,station.era,station.act,station.after,...station.lines]) assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
+    for(const text of [station.number,station.title,station.era,station.act,station.after,...station.lines,...station.passing]) assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
     for(const ref of station.figures) for(const lang of ["en","zh"] as const) assert.ok(resolveFigure(ref,lang)?.name,`${ref} resolves`);
   }
 });

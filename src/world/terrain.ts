@@ -1,11 +1,11 @@
 /** Shared physical ground for paths, foliage, rocks and the lakeshore. */
-import { riteSegments, hillHeight } from "./rite-path.ts";
+import { distToWalk, riteRise } from "./rite-path.ts";
 export const lakeLevel = -5.5;
 export const pathSegments: [number, number, number, number][] = [
   [1, 5, 1, -24], [1, -8, -7, -8], [1, -24, -2.4, -24],
   [1, -2, -1, -5], [1, -1.4, 1.8, -1.4],
-  // The walk leaves the fire to the west, passes behind the cabin and climbs the hill.
-  [-1.9, -3.6, -2.3, -2.4], ...riteSegments,
+  // The start of the walk, beside the fire. The road itself is measured by distToWalk.
+  [-1.9, -3.6, -2.3, -2.4],
 ];
 export function smoothstep(a:number,b:number,x:number) {
   const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);
@@ -18,8 +18,9 @@ export function noise(x:number,y:number) {
   const a=Math.floor(x),b=Math.floor(y),u=smoothstep(0,1,x-a),v=smoothstep(0,1,y-b);
   return (hash(a,b)*(1-u)+hash(a+1,b)*u)*(1-v)+(hash(a,b+1)*(1-u)+hash(a+1,b+1)*u)*v;
 }
+/** Distance to any walked ground, exact within 8 m (the road reports at most 8 beyond that). */
 export function distToPath(x:number,z:number) {
-  let best=Infinity;
+  let best=distToWalk(x,z);
   for(const [a,b,c,d] of pathSegments) {
     const dx=c-a,dz=d-b,t=Math.max(0,Math.min(1,((x-a)*dx+(z-b)*dz)/(dx*dx+dz*dz)));
     best=Math.min(best,Math.hypot(x-a-dx*t,z-b-dz*t));
@@ -40,6 +41,6 @@ export function terrainHeight(x:number,z:number) {
   const shelf=broad+crags-water*11;
   const pad=Math.min(boxDistance(x,z,-8,-15,4.3,5.7),boxDistance(x,z,-2.4,-23,2.8,4.3),
     Math.max(0,Math.hypot(x+1,z+5)-3),distToPath(x,z));
-  // The hill is added outside the path flattening, so the walk climbs it instead of cutting through.
-  return shelf*smoothstep(.9,4,pad)+detail+hillHeight(x,z);
+  // The long rise to the far ridge is added outside the path flattening, so the road climbs it.
+  return shelf*smoothstep(.9,4,pad)+detail+riteRise(x,z);
 }

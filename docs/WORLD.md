@@ -277,39 +277,47 @@ and the building clear. Narrow layouts retain the cabin window in the starting v
 
 The Civilization Star Map article describes a walkway whose path traces human progress, "closer to a rite of passage". `/world/` now contains it. Only the campfire is shared with the homestead; the cabin, garden and workshop keep their meaning, and a later review can decide whether they should join the walk.
 
-**Design.** A rite of passage has three movements: separation, a liminal crossing, return. The walk is built on them:
+**Design: distance is time.** A rite of passage separates you from home, carries you through a long and difficult crossing, and brings you back changed. So the walk is a real journey: a single road of about 570 m, west-south-west from the fire, through a forest, across open country and up a long slope to a far ridge. Every step away from home is a step through history. A year counter under the narration runs from three hundred thousand years ago at the threshold to *today* at the ridge (`yearsAgoAt` in `rite.ts`). Short lines between the stations tell what happened in between, so the walking itself carries the story. Earlier drafts were rejected: walking along the lake had no reason, and a spiral up a nearby hill felt like circling instead of travelling.
 
-- **Leave the fire.** A torch is planted beside the fire ring, its head smouldering. Clicking it, or **05 The walk** in the field guide, opens a card with an optional name. You hold the torch in the fire to light it.
-- **Cross the dark.** The path leaves the yard to the west, passes behind the cabin into the trees, and spirals up a new hill (`HILL` in `rite-path.ts`, added to `terrainHeight` outside the path flattening). Firs close in along the walk (`walkTrees`). Your torch is your light, and every cairn you pass catches fire from it, about every 3.4 m.
-- **Return.** On the summit the trees open onto the whole sky. Looking back, you see home below: the fire, the cabin window, the line of fire you lit winding up the hill, and the aurora over the lake.
+- **Take fire from home.** A torch is planted beside the fire ring, its head smouldering. Clicking it, or **05 The walk** in the field guide, opens a card with an optional name. You hold the torch in the campfire to light it.
+- **The threshold.** Two standing stones mark where the clearing ends: *Beyond this stone, it is three hundred thousand years ago.*
+- **The long road.** For the first 150 m the forest closes in and your torch is the only light. Then the trees open onto fields, groves and a wide sky. The country is burnt around the sixth station, then the last bare slope climbs to the crest. Every cairn you pass catches fire from your torch, about every 3.4 m (about 160 of them). Faint figures, each carrying a small light, stand beside the road in the distance and fade as you approach.
+- **The ordeal.** In the burnt country the sky, aurora, moon and stars go dark and your torch nearly goes out. The wind pushes against you, so walking slows, and the cairns will not light. Only when you give your last flame to a candle does the light return, rekindling the dark stretch behind you back toward home.
+- **The end of the road.** Beyond the crest there is no road, only dark open land: *Beyond here, there is no road yet.* You place your hand on the stone. Your star rises from it into the shared sky, above the road not yet walked, and the 45 civilization stars wake around it in the order history wrote them.
+- **Look back.** The camera turns and the mist thins. The whole line of fire runs back down the slope, across the fields and into the forest toward the warm glow of home, with the lake and the aurora beyond.
+- **Return.** **Return home** glides you back above the lit road in about 40 seconds, to the clearing: *Welcome home.* The torch you carried now burns in its stand. Your star, the lit road, the grown field and the stars you met stay (localStorage `bb-rite`); walking again starts a new rite.
 
-**Agency.** Hold to walk: pointer or touch held on empty ground, or W / Space. The path stops you at each place. Each ritual uses your hands or your fire, held in the scene (or E):
+**Agency.** Hold to walk: pointer or touch held on empty ground, or W / Space / ↑. Walking speeds up as you keep holding and slows uphill, near a station and in the ashes. Each station's narration begins as you approach, and the road stops you at its place. Each ritual uses your hands or your fire, held in the scene (or E):
 
-| | Era | Act |
-| --- | --- | --- |
-| Fire | Tonight | hold the torch in the campfire |
-| Handprint | 40,000 years ago | ancestral hands appear on the rock only in your torchlight; press yours beside them |
-| Seed | 12,000 years ago | kneel and press the seed into the earth; grain spreads outward |
-| Writing | 3200 BCE | holding the clay is writing: each moment presses another sign of your name |
-| Awakening | 500 BCE | look up and raise your torch to each of four stars; a spark carries your fire to them |
-| The heavens | 1543 | hold the armillary sphere; geocentric loops relax into orbits |
-| Ashes | 1914–1948 | sky, aurora, moon and torch nearly go out; pass what is left of your flame to a candle |
-| You | today | hold your hand on the summit stone |
+| | Era | Place | Act |
+| --- | --- | --- | --- |
+| Fire | Tonight | the campfire | hold the torch in the fire |
+| Handprint | 40,000 years ago | a rock face in the forest | ancestral hands appear only in your torchlight; press yours beside them |
+| Seed | 12,000 years ago | where the forest opens | kneel and press the seed into the earth; a wheat field spreads 28 m around you |
+| Writing | 3200 BCE | among low mud-brick walls | holding the clay is writing: each moment presses another sign of your name |
+| Awakening | 500 BCE | four seats on a knoll | raise your torch to each of four stars; a spark carries your fire to them |
+| The heavens | 1543 | an armillary on a stone platform | hold it; geocentric loops relax into orbits |
+| Ashes | 1914–1948 | the burnt country | pass what is left of your flame to a candle |
+| You | today | the crest, at the end of the road | hold your hand on the stone |
 
-**Stars.** Each place has its own stars, hung above it so that from the fire they trace the path in the sky. Each can be read at any time. When woken, a beam reaches down to a figure of light at the place, and the star joins a constellation. At the summit, the visitor's own star rises and joins it. Then the **45 shared civilization stars wake in chronological order** (a `glow` attribute in the star shader), linking into a web that ends at the new star: *We did not arrive here alone.* Then the camera turns back toward home. The visitor's star stays in the sky (localStorage) and can be clicked later.
+**Stars.** Each place has its own stars, hung about 30 m above it, so overhead they trace the road through the sky. Each can be read at any time. When woken, a beam reaches down to a figure of light at the place, and the star joins a constellation. The visitor's own star is placed in the shared celestial sphere, so it turns with the 45 civilization stars and is visible from home.
 
 **Bilingual.** All walk text is in English and Traditional Chinese (`rite.ts`, `riteFigures.ts`); 中文 / EN in the header. Other world UI remains English.
 
 **Figures.** Computing pioneers are referenced by id from `civilizationStars.ts` (optional `zh` fields added). People outside that record live in `src/data/riteFigures.ts`. A test checks there is no overlap.
 
-**Light and sound.** Added: the carried torch light, 2–3 pooled lights on the nearest lit cairns, and a candle light, none casting shadows. Moon shadows follow the walker. `rite-sound.ts` synthesizes footsteps, the carried flame, ignitions, bells, station chords, and wind that rises among the ashes. It is silent unless **Sound on** is pressed; the piano recording continues.
+**Ground and country.** `terrainHeight` adds `riteRise` outside the path flattening: a long slope that reaches 20 m at the crest and falls away beyond it, plus a low knoll for the fourth station. The road keeps the clearing's ground detail all the way: a corridor mesh with rows about every metre and 46 m to each side (`corridorGrid`). Its outer band sinks below the 5 m open-country grid, so the two never fight. A 12.5 m outer ring extends the ground to ±1500 m, so the mist beyond the ridge never shows an edge. The ground darkens in the burnt country (`ashAmount`). `rite-land.ts` lines the road with firs from the clearing's own models (`walkTrees`: dense forest, then groves, near ones in full detail and rows behind as the distant silhouette), grass, scanned stones and dead trunks (`ashTrunks`). Everything is split into 48 m stretches that are drawn only when near enough. Cairn flames are one instanced draw of the world's fire shader. Far away, each lit cairn is also a point of fire at least a few pixels across, so the whole road reads from the ridge.
+
+**Light and sound.** Added: the carried torch light, 2–3 pooled lights on the nearest lit cairns, a candle light and the stand torch, none casting shadows. Moon shadows follow the walker. `rite-sound.ts` synthesizes footsteps, the carried flame, ignitions, bells, station chords, and wind that is louder in open country and among the ashes. It is silent unless **Sound on** is pressed; the piano recording continues.
 
 | File | Responsibility |
 | --- | --- |
-| `src/world/rite-path.ts` | Route, hill height, the walk's trees, station positions (no three.js) |
-| `src/world/rite.ts` | Station content, acts, UI strings, figure lookup, chronological sky order |
-| `src/world/rite-world.ts` | Torch, cairns, station objects, stars, figures, walking, finale, DOM |
+| `src/world/rite-path.ts` | The road, its rise, stations, zones, distance to the road, corridor ground, the road's trees and dead trunks (no three.js) |
+| `src/world/trees.ts` | The clearing's fir placements, shared by the forest and the road |
+| `src/world/rite.ts` | Station content, passing lines, the year along the road, UI strings, figure lookup, chronological sky order |
+| `src/world/rite-land.ts` | Roadside forest, grass, stones and burnt country, drawn in stretches |
+| `src/world/rite-world.ts` | Torch, threshold, cairns, figures, station objects, stars, walking, ordeal, finale, glide home, DOM |
 | `src/world/rite-sound.ts` | Consent-gated synthesized sound for the walk |
 | `src/data/riteFigures.ts` | Bilingual records for figures who appear only on the walk |
 
-Exploration delegates hover, press, pointer-hold and click to the walk first (`setRite`). Escape and **Leave the walk** fade back to the clearing. Every act has a keyboard or assistive button (`#rite-act`, visible on focus). `?ritedebug` exposes `window.__rite` for browser tests.
+Exploration delegates hover, press, pointer-hold and click to the walk first (`setRite`). Escape and **Leave the walk** fade back to the clearing (after the finale they also count the rite as complete). Every act has a keyboard or assistive button (`#rite-act`, visible on focus). `?ritedebug` exposes `window.__rite` for browser tests.

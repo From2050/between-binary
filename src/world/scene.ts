@@ -22,6 +22,7 @@ import { addLandscape } from "./landscape";
 import { populateForest } from "./forest";
 import { populateUnderstory } from "./understory";
 import { terrainHeight, distToPath } from "./terrain";
+import { ashAmount, corridorGrid, corridorLift, distToWalk, CORRIDOR } from "./rite-path";
 import { addVista } from "./vista";
 import { createRite } from "./rite-world";
 
@@ -146,35 +147,37 @@ export async function initWorld() {
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   });
   floorTextures[0].colorSpace = THREE.SRGBColorSpace;
-  function makeGround(width: number, depth: number, segX: number, segZ: number, far = false, cx = 0, cz = 0) {
-    const geo = new THREE.PlaneGeometry(width,depth,segX,segZ);
+  /** Every floor shares one material and is built in world coordinates. `keep` drops triangles another floor
+   * covers; `lift` lets an overlapping band sink just below its neighbour instead of fighting it. */
+  const plane=(width:number,depth:number,segX:number,segZ:number)=>new THREE.PlaneGeometry(width,depth,segX,segZ).rotateX(-Math.PI/2);
+  function makeGround(geo: THREE.BufferGeometry, keep?: (x:number,z:number)=>boolean, lift?: (x:number,z:number)=>number) {
     const pos = geo.attributes.position;
-    const uv = geo.attributes.uv;
+    const uv = new Float32Array(pos.count*2);
     const colors = new Float32Array(pos.count*3);
     const wear = new Float32Array(pos.count);
     for (let i=0;i<pos.count;i++) {
-      const x=pos.getX(i)+cx, z=-pos.getY(i)+cz;
-      pos.setXY(i,x,-z);
-      pos.setZ(i,terrainHeight(x,z));
-      uv.setXY(i,x/2.6,z/2.6);
-      const shade=.55+fbm2(x*.21+8,z*.21+4)*.65;
-      colors.set([shade,shade*.94,shade*.83],i*3);
+      const x=pos.getX(i), z=pos.getZ(i);
+      pos.setY(i,terrainHeight(x,z)+(lift?lift(x,z):0));
+      uv[i*2]=x/2.6;uv[i*2+1]=z/2.6;
+      // The walk's burnt country is darker and greyer underfoot.
+      const shade=.55+fbm2(x*.21+8,z*.21+4)*.65,burnt=ashAmount(x,z);
+      colors.set([shade*(1-burnt*.64),shade*.94*(1-burnt*.6),shade*.83*(1-burnt*.52)],i*3);
       const jitter=(vnoise2(x*2,z*2)-.5)*.45;
       const path=1-smoothstep(.42,1.25,distToPath(x,z)+jitter);
       const yard=1-smoothstep(2.2,3.5,Math.hypot(x+1,z+5));
       wear[i]=Math.max(path,yard*.85);
     }
-    if (far) {
+    if (keep) {
       const source=geo.index!;const indices=[];
       for(let i=0;i<source.count;i+=3) {
         const ids=[source.getX(i),source.getX(i+1),source.getX(i+2)];
-        // Both grids meet exactly at +/-50, without z-fighting.
         const x=ids.reduce((sum,id)=>sum+pos.getX(id),0)/3;
-        const z=ids.reduce((sum,id)=>sum-pos.getY(id),0)/3;
-        if(Math.abs(x)>=50 || Math.abs(z)>=50) indices.push(...ids);
+        const z=ids.reduce((sum,id)=>sum+pos.getZ(id),0)/3;
+        if(keep(x,z)) indices.push(...ids);
       }
       geo.setIndex(indices);
     }
+    geo.setAttribute("uv",new THREE.BufferAttribute(uv,2));
     geo.setAttribute("color",new THREE.BufferAttribute(colors,3));
     geo.setAttribute("pathWear",new THREE.BufferAttribute(wear,1));
     geo.computeVertexNormals();
@@ -211,10 +214,17 @@ export async function initWorld() {
     };
     material.customProgramCacheKey=()=>"forest-floor-wear-v2";
     const ground=new THREE.Mesh(geo,material);
-    ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+    ground.receiveShadow=true;scene.add(ground);
   }
-  makeGround(100,100,250,250);
-  makeGround(1400,1400,280,280,true);
+  const nearby=(x:number,z:number)=>Math.abs(x)<50&&Math.abs(z)<50;
+  makeGround(plane(100,100,250,250));
+  // The walk's road keeps the clearing's detail all the way to the far ridge.
+  { const corridor=corridorGrid(),geo=new THREE.BufferGeometry();
+    geo.setAttribute("position",new THREE.BufferAttribute(corridor.positions,3));geo.setIndex(corridor.index);
+    makeGround(geo,(x,z)=>!nearby(x,z),corridorLift); }
+  // Grids meet exactly at +/-50 and +/-700, without z-fighting.
+  makeGround(plane(1400,1400,280,280),(x,z)=>!nearby(x,z)&&distToWalk(x,z,60)>CORRIDOR-7);
+  makeGround(plane(3000,3000,240,240),(x,z)=>Math.abs(x)>=700||Math.abs(z)>=700);
 
   // ─── Lights ───
   // Three direct sources. A low-energy light probe approximates their missing
@@ -403,6 +413,7 @@ export async function initWorld() {
 
   let riteRock: {geometry:THREE.BufferGeometry;material:THREE.Material|THREE.Material[]}|undefined;
   let riteGrass: {geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial}|undefined;
+  let riteForest: THREE.Group|undefined;
 
   // ─── Places ───
   type Place = {
@@ -624,6 +635,7 @@ export async function initWorld() {
     wood[0].colorSpace=THREE.SRGBColorSpace;
     populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object),(x,z)=>distToPath(x,z)<3.6);
     populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
+    riteForest=forest.scene;
     // Source meshes the walk reuses: one scanned rock (normalised to 1 m) and one grass tuft.
     details.scene.children.find(n=>/rock/.test(n.name))?.traverse(node=>{
       if(riteRock||!(node instanceof THREE.Mesh))return;
@@ -761,7 +773,7 @@ export async function initWorld() {
   ready();
   const exploration = createExploration(camera, canvas, starsGroup, places);
   // The walk: shares only the fire with the rest of the world.
-  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,
+  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,
     mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce,
     civ:{points:starsGroup.getObjectByName("civ-stars") as THREE.Points,group:starsGroup}});
   rite.attach(exploration);

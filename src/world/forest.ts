@@ -1,17 +1,9 @@
 import * as THREE from 'three';
 import type { createWind } from './wind';
 import { ridgeTrees } from './ridge-trees.ts';
-import { walkTrees } from './rite-path.ts';
 
-// A sheltered clearing, with uneven groups of trunks rather than a perimeter fence.
-export const forestTrees: [number,number,number,number][] = [
-  [-6.4,3.6,.94,0],[18,12,.88,1],[-9,-5,1.05,2],[-13,-10,.97,0],
-  [-14.3,-17,.83,1],[-14,-22,1.13,2],[-9,-28,.98,0],[-19,-6,1.18,1],
-  [26,5,.88,2],[20,-21,1.06,0],[22,-31,1.1,1],[-10,-36,1.0,2],
-  [-18,-33,1.13,0],[-27,-21,1.08,1],[19,-34,1.2,2],[27,-23,1.22,0],
-  [-12,-42,1.1,1],[4,-45,1.12,0],[25,-43,1.1,2],[-28,5,1.1,0],
-  [21,9,1.03,1],[-15,17,.95,2],[8,24,1.08,0],[-5,31,1.15,1],
-];
+export { forestTrees } from './trees.ts';
+import { forestTrees } from './trees.ts';
 export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THREE.Group,
   wind:ReturnType<typeof createWind>,height:(x:number,z:number)=>number,small:boolean,reflect?:(object:THREE.Object3D)=>void,
   keepClear:(x:number,z:number)=>boolean=()=>false) {
@@ -25,7 +17,7 @@ export function populateForest(scene:THREE.Scene,forest:THREE.Group,details:THRE
   forest.children.forEach(variant=>{
     const distant=variant.name==='fir_distance';
     const variantIndex=variant.name.includes('_a_')?0:variant.name.includes('_b_')?1:2;
-    const placements=(distant?distantTrees:[...forestTrees.filter((p,i)=>!small||![7,13,14,15,16,18].includes(i)),...walkTrees.filter((_,i)=>!small||i%2===0)].filter(p=>p[3]===variantIndex)).filter(([x,z,_scale,_variant,y])=>(y!==undefined||height(x,z)>-4)&&!keepClear(x,z));
+    const placements=(distant?distantTrees:forestTrees.filter((p,i)=>!small||![7,13,14,15,16,18].includes(i)).filter(p=>p[3]===variantIndex)).filter(([x,z,_scale,_variant,y])=>(y!==undefined||height(x,z)>-4)&&!keepClear(x,z));
     variant.traverse(node=>{
       if(!(node instanceof THREE.Mesh))return;
       const material=(node.material as THREE.MeshStandardMaterial).clone();
