@@ -847,6 +847,8 @@ export async function initWorld() {
     const dt = Math.min(clock.getDelta(), 0.08);
     exploration.update(dt);
     if (rite.update(dt, sceneTime)) needsRender = true;
+    // The sky is infinitely far: it travels with the viewer, so stars and constellations keep their shape everywhere.
+    starsGroup.position.copy(camera.position);
     if (exploration.paused && !needsRender) return;
     if (!exploration.paused) sceneTime += dt;
     const t = sceneTime;
@@ -935,7 +937,7 @@ export async function initWorld() {
 
     // Track the visible lunar disc, including the sky group's rotation.
     starsGroup.updateMatrixWorld(true);
-    const moonDirection=moonDisc.getWorldPosition(new THREE.Vector3()).normalize();
+    const moonDirection=moonDisc.getWorldPosition(new THREE.Vector3()).sub(starsGroup.position).normalize();
     moonLight.position.copy(moonDirection.multiplyScalar(70)).add(moonLight.target.position);
     if (t-lastMoonShadowTime>(smallScreen?.4:.18) || lastMoonShadowTime<0) {
       moonLight.shadow.needsUpdate=true;

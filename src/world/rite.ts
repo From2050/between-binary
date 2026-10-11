@@ -112,12 +112,14 @@ export const riteUi = {
   startTitle: n("The walk", "成年之路"),
   startEyebrow: n("05 / A rite of passage", "05 / 成年禮"),
   startText: n(
-    "A torch stands by the fire. Take fire from home, and carry it along the old road — through the forest, across the open country, to the far ridge — through three hundred thousand years of people who passed the fire on. Then come home. About twelve minutes. Headphones help.",
-    "營火旁插著一支火把。從家裡取火，帶著它走上那條老路——穿過森林、越過曠野，一直走到遠方的山脊，走過三十萬年來傳火的人。然後，回家。約十二分鐘，建議戴耳機。"),
+    "A torch stands by the fire. Take fire from home, and carry it along the old road — out across the open country under the aurora, to the far ridge — through three hundred thousand years of people who passed the fire on. Then come home. About twelve minutes. Headphones help.",
+    "營火旁插著一支火把。從家裡取火，帶著它走上那條老路——走進極光下的曠野，一直走到遠方的山脊，走過三十萬年來傳火的人。然後，回家。約十二分鐘，建議戴耳機。"),
   name: n("Your name (optional — it will be pressed into clay, and set in the sky)", "你的名字（選填，會刻進泥板，也會成為一顆星）"),
   walkHint: n("Hold to walk · drag to look around", "按住前進 · 拖曳環顧"),
   walkKeys: n("or hold W / Space", "或按住 W / 空白鍵"),
   holdKeys: n("(or hold E)", "（或按住 E）"),
+  figure: n("Everyone you met on the way, together in the sky: a figure holding up a fire.", "一路上你遇見的人，在天上連成了一個舉著火的人。"),
+  flame: n("The flame at the top is you.", "最上面那團火，是你。"),
   together: n("We did not arrive here alone.", "我們，不是獨自走到這裡的。"),
   together2: n("Every point of light above you made room for the next.", "頭上的每一點光，都為下一個人騰出了位置。"),
   lookBack: n("Look back.", "回頭看。"),
@@ -134,6 +136,23 @@ export const riteUi = {
   starHint: n("A star on the walk", "這段路上的星"),
   holding: n("keep holding…", "繼續按住……"),
 } as const;
+
+/** The constellation the walk draws: everyone you meet, joined into one figure striding with a fire held high.
+ * The first people are its feet, the philosophers its body and head, the astronomers the arm that reaches up,
+ * the authors of human rights the hand that holds the fire, and you the flame. [degrees right, degrees up]
+ * in a plane facing the viewer, centred 40° above the horizon. */
+export const torchbearer = {
+  name: n("The Torchbearer", "持火者"),
+  points: {
+    painter: [-8, 16], farmer: [8, 16], enheduanna: [0, 30],
+    confucius: [.5, 35.5], laozi: [1, 40.5], buddha: [2.5, 44.5], socrates: [4.5, 51],
+    zhangheng: [-4.5, 39], copernicus: [-8.5, 33.5], galileo: [7.5, 46.5], newton: [10, 51], curie: [12, 54.5],
+    eleanor: [13.2, 58], pcchang: [15.4, 56.8], you: [15.2, 63.5],
+  } as Record<string, [number, number]>,
+  edges: [["painter", "enheduanna"], ["farmer", "enheduanna"], ["enheduanna", "confucius"], ["confucius", "laozi"], ["laozi", "buddha"],
+    ["buddha", "socrates"], ["buddha", "zhangheng"], ["zhangheng", "copernicus"], ["buddha", "galileo"], ["galileo", "newton"], ["newton", "curie"],
+    ["curie", "eleanor"], ["curie", "pcchang"], ["eleanor", "pcchang"], ["eleanor", "you"], ["pcchang", "you"]] as [string, string][],
+};
 
 export type ResolvedFigure = { name: string; life: string; text: string; quote?: string; href?: string };
 

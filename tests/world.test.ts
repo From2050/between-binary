@@ -215,7 +215,7 @@ test("reduced motion keeps a readable static title and never restarts camera mot
 
 
 import { ritePoints, riteLength, walkTrees, ashTrunks, stationMeters, THRESHOLD, pointAt, distToWalk, AXIS } from "../src/world/rite-path.ts";
-import { riteStations, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt } from "../src/world/rite.ts";
+import { riteStations, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt, torchbearer } from "../src/world/rite.ts";
 import { riteFigures } from "../src/data/riteFigures.ts";
 import { civilizationStars } from "../src/data/civilizationStars.ts";
 test("the walk is a long road away from home that never doubles back", () => {
@@ -250,8 +250,8 @@ test("the road's forest leaves the road, the yard and the existing routes open",
     assert.ok(Math.hypot(x+1,z+5)>6,"the fire yard stays open");
   }
   for(const [x,z] of walkTrees) for(const [fx,fz] of forestTrees) assert.ok(Math.hypot(x-fx,z-fz)>2.8,"no fir grows inside another");
-  const forest=walkTrees.filter(t=>t[4]<150).length,open=walkTrees.filter(t=>t[4]>210&&t[4]<430).length;
-  assert.ok(forest>open*1.5,"the forest is dense and the open country is open");
+  assert.ok(walkTrees.filter(t=>t[4]>40&&t[3]<3).length<60,"beyond the trees around home the road crosses open country");
+  assert.ok(walkTrees.some(t=>t[4]>40),"a few lone firs and groves stand along the way");
   assert.ok(ashTrunks.length>20,"the burnt country has its dead trees");
   const views=[overview,...Object.values(destinations)];
   for(const start of views) for(const end of views) {
@@ -283,6 +283,16 @@ test("walk-only figures are not duplicates of the shared civilization records", 
   for(const figure of riteFigures) assert.ok(!civ.has(figure.name.en.toLowerCase()),`${figure.name.en} lives in one record only`);
   const used=new Set(riteStations.flatMap(s=>s.figures));
   for(const figure of riteFigures) assert.ok(used.has(figure.id),`${figure.id} appears on the walk`);
+});
+test("everyone met on the walk is one star of the Torchbearer, and the figure is one connected shape", () => {
+  const refs=riteStations.flatMap(s=>s.figures);
+  assert.deepEqual([...refs,"you"].sort(),Object.keys(torchbearer.points).sort());
+  const seen=new Set(["you"]),edges=torchbearer.edges;
+  for(const [a,b] of edges) assert.ok(a in torchbearer.points&&b in torchbearer.points);
+  for(let grew=true;grew;) { grew=false; for(const [a,b] of edges) if(seen.has(a)!==seen.has(b)) { seen.add(a); seen.add(b); grew=true; } }
+  assert.equal(seen.size,refs.length+1,"every star is joined into the figure");
+  const [fx,fy]=torchbearer.points.you;
+  for(const [x,y] of Object.values(torchbearer.points)) assert.ok(y<=fy,"the flame is held highest"); void fx;
 });
 test("the summit wakes every shared star once, in chronological order", () => {
   const order=chronologicalSky();

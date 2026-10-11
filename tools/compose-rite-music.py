@@ -263,23 +263,24 @@ def cue_ascent():
     return tr.render(wet=.4)
 
 def cue_finale():
-    """The end of the road. The star rises, everyone who came before joins in, then you turn and look home."""
-    tr = Track(64.0, loop=False)
+    """The end of the road. The star rises (0–7 s) and becomes the Torchbearer's flame; the choir sings the theme while the
+    figure shines and the shared sky wakes (7.6–25 s); then the piano, as you turn and look home (25.4 s)."""
+    tr = Track(80.0, loop=False)
     for j, m in enumerate(N("D2", "A2", "D3", "A3", "D4", "F#4", "A4")): tr.add(strings(m, 7.5, .1 + j * .02, attack=5 + j * .2, release=3, bright=.4 + j * .05), j * .4, (j / 6 - .5) * .7)
     for j, m in enumerate(N("D4", "F#4", "A4", "D5", "E5", "F#5", "A5", "D6")): tr.add(harp(m, .3), 4.8 + j * .22, (j / 7 - .5))
     tr.add(celesta(note("A6"), .4), 7.1, 0); tr.add(bell(note("D5"), .3), 7.1, 0)
     t0 = 7.6
     theme_line(tr, t0, play=lambda tr, m, t, d: (tr.add(choir(m, d * 1.02, .3, "a", attack=.4, release=1.6), t, -.1), tr.add(strings(m + 12, d * 1.02, .2, bright=.65, attack=.3, release=1.4), t, .15)), upto=11)
     t = t0
-    for notes, beats in THEME_CHORDS[:5]:
+    for notes, beats in THEME_CHORDS[:4]:
         chord(tr, notes, t, beats * BEAT + .6, vel=.24, attack=.8, release=2.5, bright=.5); tr.add(timpani(notes[0] + 12, .28), t, 0); t += beats * BEAT
-    t1 = 18.4
+    t1 = 25.4
     theme_line(tr, t1, play=lambda tr, m, t, d: tr.add(piano(m, d * .95, .4), t, .1))
     t = t1
     for notes, beats in THEME_CHORDS:
         chord(tr, [m + 12 for m in notes[1:]], t, beats * BEAT + .5, vel=.12, attack=1.5, release=3, bright=.45); t += beats * BEAT
-    chord(tr, N("D3", "A3", "E4", "F#4", "A4"), 50, 13, vel=.12, attack=4, release=8, bright=.4)
-    chord(tr, N("D4", "A4"), 50, 13, "choir", vel=.08, vowel="o", attack=4, release=8)
+    chord(tr, N("D3", "A3", "E4", "F#4", "A4"), 57, 14, vel=.12, attack=4, release=8, bright=.4)
+    chord(tr, N("D4", "A4"), 57, 14, "choir", vel=.08, vowel="o", attack=4, release=8)
     return tr.render(wet=.5)
 
 def cue_hold():

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { fireFragment } from "./shaders";
-import { pointAt, riteLength, stationMeters, THRESHOLD, zones } from "./rite-path.ts";
-import { riteStations, riteUi, resolveFigure, say, chronologicalSky, yearsAgoAt, yearLabel, type Lang, type RiteStation } from "./rite.ts";
+import { pointAt, riteLength, stationMeters, THRESHOLD, zones, AXIS } from "./rite-path.ts";
+import { riteStations, riteUi, resolveFigure, say, chronologicalSky, yearsAgoAt, yearLabel, torchbearer, type Lang, type RiteStation } from "./rite.ts";
 import { createRiteSound, type RiteMix } from "./rite-sound.ts";
 import { addRoadside } from "./rite-land.ts";
 import { addAtmosphere } from "./rite-atmos.ts";
@@ -283,6 +283,7 @@ export function createRite(o: Options) {
   // 1 · the rock in the forest: ancestors' hands appear only in your torchlight; then yours, in light
   const ancestorHands: THREE.Mesh[] = [];
   { const L = live[1], rock = rockMesh(new THREE.Vector3(3.8, 3.1, 1.9)); rock.position.set(0, -.2, -.9); L.group.add(rock); rock.userData = { kind: "gate", station: 1 }; targets.push(rock);
+    for (const [x, z, k, ry] of [[-3.6, -2.2, 1.6, .4], [3.4, -1.6, 1.1, 1.9], [-1.4, -3.6, 2.2, 2.6], [4.8, -3.8, 1.8, .9], [-5.2, .6, .9, 1.2]]) { const b = rockMesh(new THREE.Vector3(k, k * .7, k * .9)); b.position.set(x, -.12 * k, z); b.rotation.y = ry; L.group.add(b); }
     L.focus.y = L.pos.y + 1.2; L.group.updateMatrixWorld(true);
     const ray = new THREE.Raycaster(), from = at(L.s).setY(at(L.s).y + 1.2), t = tangent(L.s);
     [["168,56,30", -.6, .7], ["132,34,20", .45, 1.35], ["176,72,36", .1, .5], ["214,196,168", -.25, 1.65], ["150,44,24", .7, .85], ["160,52,28", -1.05, 1.15]].forEach(([c, dx, dy], k) => {
@@ -428,78 +429,121 @@ export function createRite(o: Options) {
   const flies = motes(o.small ? 24 : 48, .09), flySeed = Array.from({ length: (flies.geometry.attributes.position as THREE.BufferAttribute).count }, (_, i) => [seeded(i + 5)(), seeded(i + 55)(), seeded(i + 555)()]);
   const flyHome = new THREE.Vector3(); let flyAmount = 0;
 
-  // ─── The walk's stars: hung above their places, so overhead they trace the road through the sky ───
+  // ─── The walk's stars: one constellation, the Torchbearer, fixed in the turning sky ───
+  // Each station lights its people; a ribbon of light joins them to those already lit; at the end your star is the flame.
   const flareTex = canvasTexture(128, 128, g => { const gr = g.createLinearGradient(0, 64, 128, 64); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 62, 128, 4); g.save(); g.translate(64, 64); g.rotate(Math.PI / 2); g.translate(-64, -64); g.fillRect(0, 63, 128, 2.4); g.restore(); });
-  const beamTex = canvasTexture(16, 256, g => { const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, "rgba(255,255,255,.05)"); gr.addColorStop(.75, "rgba(255,255,255,.75)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 16, 256); });
-  type Star = { ref: string; station: number; pos: THREE.Vector3; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; figure: THREE.Sprite; beam: THREE.Mesh; metAt: number; raise: number };
-  const sky = new THREE.Group(); sky.name = "The walk's stars"; root.add(sky);
+  const beamTex = canvasTexture(16, 256, g => { const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.6, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 16, 256); });
+  const ribbonTex = canvasTexture(64, 4, g => { const gr = g.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,1)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 4); });
+  const skyGroup = o.civ.group, R = 1850;
+  type Star = { ref: string; station: number; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; hit: THREE.Mesh; figure: THREE.Sprite; beam: THREE.Mesh; foot: THREE.Vector3; metAt: number; raise: number };
   const stars: Star[] = [];
-  const STAR = 1.3; // sprite scale for stars about 30 m up
+  const layout = new Map<string, THREE.Vector3>();
+  /** Lay the figure out in the sky's own frame so that, at the moment the walk begins, it stands ahead of you and a
+   * little to the right; the sky's turning then carries it across the road ahead over the length of the walk. */
+  function anchor() {
+    const theta = skyGroup.rotation.y, az = Math.atan2(AXIS.dz, AXIS.dx) + THREE.MathUtils.degToRad(36), el = THREE.MathUtils.degToRad(40);
+    const C = new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
+    const left = new THREE.Vector3(Math.sin(az), 0, -Math.cos(az)), up = new THREE.Vector3(0, 1, 0).addScaledVector(C, -C.y).normalize();
+    const toSky = new THREE.Matrix4().makeRotationY(-theta);
+    for (const [ref, [u, v]] of Object.entries(torchbearer.points)) layout.set(ref, C.clone().addScaledVector(left, Math.tan(THREE.MathUtils.degToRad(u))).addScaledVector(up, Math.tan(THREE.MathUtils.degToRad(v - 40))).normalize().applyMatrix4(toSky));
+    for (const x of stars) { const p = layout.get(x.ref)!.clone().multiplyScalar(R); x.core.position.copy(p); x.halo.position.copy(p); x.flare.position.copy(p); x.hit.position.copy(p); }
+  }
+  const skyPoint = (ref: string) => { skyGroup.updateMatrixWorld(); return skyGroup.localToWorld(layout.get(ref)!.clone().multiplyScalar(R)); };
+  const starWorld = (i: number) => skyPoint(stars[i].ref);
   live.forEach(L => L.st.figures.forEach((ref, k, all) => {
-    const u = all.length > 1 ? k / (all.length - 1) - .5 : 0, wide = L.st.kind === "axial" ? 34 : 18;
-    const pos = at(L.s).addScaledVector(tangent(L.s), u * wide).add(new THREE.Vector3(0, 29 + Math.cos(u * 3) * 4 + L.i * 1.4, 0));
-    const halo = glowSprite(glowTexture, 0xffe6bf, .2); halo.position.copy(pos); halo.scale.setScalar(6 * STAR); sky.add(halo);
-    const flare = glowSprite(flareTex, 0xfff1d6, .35); flare.position.copy(pos); flare.scale.setScalar(5 * STAR); sky.add(flare);
-    const core = glowSprite(glowTexture, 0xfff6e6); core.position.copy(pos); core.scale.setScalar(1.3 * STAR); sky.add(core);
-    const hit = hitbox(new THREE.SphereGeometry(4.4, 8, 6), "star", L.i); hit.userData.index = stars.length; hit.position.copy(pos); root.add(hit);
+    const halo = glowSprite(glowTexture, 0xffe6bf, 0); skyGroup.add(halo);
+    const flare = glowSprite(flareTex, 0xfff1d6, 0); skyGroup.add(flare);
+    const core = glowSprite(glowTexture, 0xfff6e6, 0); skyGroup.add(core);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(R * .024, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); hit.userData = { kind: "star", station: L.i, index: stars.length }; targets.push(hit); skyGroup.add(hit);
     const foot = L.st.kind === "axial" ? plinths[k].clone() : L.pos.clone().addScaledVector(at(L.s).sub(L.pos).setY(0).normalize(), .3).addScaledVector(tangent(L.s), (k - (all.length - 1) / 2) * 1.05 + 1.7);
     if (L.st.kind !== "axial") foot.y = height(foot.x, foot.z);
     const figure = new THREE.Sprite(new THREE.SpriteMaterial({ map: figureTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); figure.center.set(.5, 0); figure.scale.set(.74, 1.66, 1); figure.position.copy(foot); root.add(figure);
-    const span = pos.distanceTo(foot), beam = new THREE.Mesh(new THREE.CylinderGeometry(.04, .2, span, 10, 1, true), new THREE.MeshBasicMaterial({ map: beamTex, color: 0xffe0b0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-    beam.position.copy(pos).add(foot).multiplyScalar(.5); beam.lookAt(pos); beam.rotateX(Math.PI / 2); beam.visible = false; root.add(beam);
-    stars.push({ ref, station: L.i, pos, core, halo, flare, figure, beam, metAt: -1, raise: 0 });
+    // the beam comes down from the star itself, wherever the turning sky has carried it
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.7, .12, 260, 10, 1, true), new THREE.MeshBasicMaterial({ map: beamTex, color: 0xffe0b0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    beam.visible = false; beam.frustumCulled = false; root.add(beam);
+    stars.push({ ref, station: L.i, core, halo, flare, hit, figure, beam, foot, metAt: -1, raise: 0 });
   }));
-  const constellation = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf6dcae, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  constellation.frustumCulled = false; root.add(constellation);
-  const reflection = o.mirror(sky);
-  const syncReflection = () => sky.children.forEach((child, i) => { const m = reflection.children[i]; if (m) { m.position.copy(child.position); m.scale.copy(child.scale); } });
+  // ribbons of light between the people, drawn from whoever was lit first to whoever has just been lit
+  const edges = torchbearer.edges.map(([a, b]) => ({ a, b, from: a, p: 0 }));
+  const ribbonGeo = new THREE.BufferGeometry();
+  ribbonGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(edges.length * 12), 3));
+  ribbonGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(edges.length * 12), 3));
+  ribbonGeo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(edges.flatMap(() => [0, 0, 1, 0, 0, 1, 1, 1])), 2));
+  ribbonGeo.setIndex(edges.flatMap((_, i) => [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 1, i * 4 + 3, i * 4 + 2]));
+  const ribbons = new THREE.Mesh(ribbonGeo, new THREE.MeshBasicMaterial({ map: ribbonTex, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }));
+  ribbons.frustumCulled = false; skyGroup.add(ribbons);
+  const isLit = (ref: string) => ref === "you" ? mineAt >= 0 && time - mineAt > 6.6 || mineRemembered : stars.find(x => x.ref === ref)!.metAt > -1;
+  const litAt = (ref: string) => ref === "you" ? (mineRemembered ? -1000 : mineAt + 6.6) : stars.find(x => x.ref === ref)!.metAt;
+  let figureGlow = 0, mineRemembered = false;
+  function rebuildConstellation() {
+    for (const e of edges) {
+      if (!isLit(e.a) || !isLit(e.b)) { e.p = 0; continue; }
+      if (e.p === 0) { e.from = litAt(e.a) <= litAt(e.b) ? e.a : e.b; e.p = Math.min(litAt(e.a), litAt(e.b)) < -100 && Math.max(litAt(e.a), litAt(e.b)) < -100 ? 1 : .001; }
+    }
+  }
+  function drawRibbons(dt: number, dim: number) {
+    const pos = ribbonGeo.attributes.position as THREE.BufferAttribute, col = ribbonGeo.attributes.color as THREE.BufferAttribute, half = R * .0011 * (1 + figureGlow * .5);
+    edges.forEach((e, i) => {
+      if (e.p > 0 && e.p < 1) e.p = Math.min(1, e.p + dt / 1.8);
+      const A = layout.get(e.from)!.clone().multiplyScalar(R), B = layout.get(e.from === e.a ? e.b : e.a)!.clone().multiplyScalar(R), end = A.clone().lerp(B, sm(0, 1, e.p));
+      const side = new THREE.Vector3().crossVectors(B.clone().sub(A), A.clone().add(B)).normalize().multiplyScalar(half);
+      [A.clone().sub(side), A.clone().add(side), end.clone().sub(side), end.clone().add(side)].forEach((v, k) => pos.setXYZ(i * 4 + k, v.x, v.y, v.z));
+      const a = (e.p > 0 ? .5 + .5 * figureGlow : 0) * (1 - dim), warm = e.a === "you" || e.b === "you" ? 1 : 0;
+      for (let k = 0; k < 4; k++) col.setXYZ(i * 4 + k, a * 1, a * (.84 - warm * .14), a * (.62 - warm * .22));
+    });
+    pos.needsUpdate = col.needsUpdate = true;
+  }
 
-  // ─── Your star: it rises from your hand on the crest and takes its place in the shared sky, above the road not yet walked ───
-  const skyGroup = o.civ.group;
+  // ─── Your star: it rises from your hand on the crest and becomes the flame the Torchbearer holds up ───
   const mine = glowSprite(glowTexture, 0xffc070, 0), mineHalo = glowSprite(glowTexture, 0xffb060, 0); mine.renderOrder = 2; skyGroup.add(mine, mineHalo);
-  const mineHit = new THREE.Mesh(new THREE.SphereGeometry(42, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); mineHit.userData = { kind: "mine" }; mineHit.visible = false; skyGroup.add(mineHit);
+  const mineHit = new THREE.Mesh(new THREE.SphereGeometry(R * .026, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); mineHit.userData = { kind: "mine" }; mineHit.visible = false; skyGroup.add(mineHit);
   const altarTop = live[7].pos.clone().add(new THREE.Vector3(0, .6, 0));
   const homeward = FIRE.clone().sub(live[7].pos).setY(0).normalize();
-  const mineTarget = () => tangent(LEN).multiplyScalar(.56).add(new THREE.Vector3(0, .83, 0)).normalize().multiplyScalar(1880).add(camera.position);
+  const mineTarget = () => skyPoint("you");
   const mineWorld = new THREE.Vector3();
   function placeMine(world: THREE.Vector3, k: number) {
     mineWorld.copy(world); skyGroup.updateMatrixWorld(); const local = skyGroup.worldToLocal(world.clone()), d = world.distanceTo(camera.position);
     mine.position.copy(local); mineHalo.position.copy(local); mineHit.position.copy(local);
-    mine.scale.setScalar(THREE.MathUtils.lerp(.9, d * .014, k)); mineHalo.scale.setScalar(THREE.MathUtils.lerp(3, d * .06, k));
+    mine.scale.setScalar(THREE.MathUtils.lerp(.9, d * .016, k)); mineHalo.scale.setScalar(THREE.MathUtils.lerp(3, d * .07, k));
   }
+  anchor();
   const trail = new THREE.Line(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3)), new THREE.LineBasicMaterial({ color: 0xffc070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   trail.frustumCulled = false; root.add(trail);
-  // sparks: your fire, travelling to whatever it lights
+  // sparks: your fire, travelling to whatever it lights (towards a star, it flies off along the way to it)
   type Spark = { sprite: THREE.Sprite; from: THREE.Vector3; to: THREE.Vector3; t0: number; dur: number; done: () => void };
   const sparks: Spark[] = [];
-  function spark(to: THREE.Vector3, dur: number, done: () => void) { const sprite = glowSprite(glowTexture, 0xffc27a, 1); sprite.scale.setScalar(.35); root.add(sprite); sparks.push({ sprite, from: torchTip(), to: to.clone(), t0: time, dur, done }); }
+  function spark(to: THREE.Vector3, dur: number, done: () => void) { const from = torchTip(), sprite = glowSprite(glowTexture, 0xffc27a, 1); sprite.scale.setScalar(.35); root.add(sprite); const target = to.distanceTo(from) > 200 ? from.clone().add(to.clone().sub(from).normalize().multiplyScalar(45)) : to.clone(); sparks.push({ sprite, from, to: target, t0: time, dur, done }); }
 
   // ─── The shared sky: the 45 civilization stars wake in the order history wrote them ───
   const civGeo = o.civ.points.geometry, civCount = civGeo.attributes.position.count;
   const civGlow = new THREE.BufferAttribute(new Float32Array(civCount), 1); civGeo.setAttribute("glow", civGlow);
   const civOrder = chronologicalSky();
-  const civWeb = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(civCount * 6), 3)), new THREE.LineBasicMaterial({ color: 0xf2dcb0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  civWeb.frustumCulled = false; civWeb.geometry.setDrawRange(0, 0); skyGroup.add(civWeb);
-  const civTie = new THREE.Line(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3)), new THREE.LineBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  civTie.frustumCulled = false; root.add(civTie);
   let civWoken = 0;
+  // as each shared star wakes, a streak of its light travels across the sky into the Torchbearer's flame
+  type Gift = { sprites: THREE.Sprite[]; from: THREE.Vector3; t0: number };
+  const gifts: Gift[] = [];
   function wakeCiv(n: number) {
-    const p = civGeo.attributes.position as THREE.BufferAttribute, w = civWeb.geometry.attributes.position as THREE.BufferAttribute;
+    const p = civGeo.attributes.position as THREE.BufferAttribute;
     while (civWoken < n && civWoken < civOrder.length) {
-      const i = civOrder[civWoken], a = new THREE.Vector3().fromBufferAttribute(p, i);
-      if (civWoken > 0) { let best = 0, bd = Infinity; for (let k = 0; k < civWoken; k++) { const d = a.distanceTo(new THREE.Vector3().fromBufferAttribute(p, civOrder[k])); if (d < bd) { bd = d; best = civOrder[k]; } }
-        const b = new THREE.Vector3().fromBufferAttribute(p, best); w.setXYZ((civWoken - 1) * 2, b.x, b.y, b.z); w.setXYZ((civWoken - 1) * 2 + 1, a.x, a.y, a.z); }
+      const sprites = [0, 1, 2, 3].map(() => { const sp = glowSprite(glowTexture, 0xffe2b0, 0); skyGroup.add(sp); return sp; });
+      gifts.push({ sprites, from: new THREE.Vector3().fromBufferAttribute(p, civOrder[civWoken]).normalize(), t0: time });
       civWoken++; if (civWoken % 4 === 1) sound.bell(79 + (civWoken % 9), .025);
     }
-    w.needsUpdate = true; civWeb.geometry.setDrawRange(0, Math.max(0, civWoken - 1) * 2);
+  }
+  let flamePulse = 0;
+  function flyGifts() {
+    const to = layout.get("you")!;
+    for (let k = gifts.length - 1; k >= 0; k--) {
+      const gift = gifts[k], u = Math.min(1, (time - gift.t0) / 1.7);
+      gift.sprites.forEach((sp, j) => { const v = Math.max(0, u - j * .035), e = v * v * (3 - 2 * v);
+        sp.position.copy(gift.from).lerp(to, e).normalize().multiplyScalar(R * .99); sp.material.opacity = Math.sin(Math.PI * Math.min(1, v * 1.05)) * (1 - j * .24);
+        sp.scale.setScalar(R * (.014 - e * .006) * (1 - j * .18)); });
+      if (u >= 1) { gift.sprites.forEach(sp => { skyGroup.remove(sp); sp.material.dispose(); }); gifts.splice(k, 1); flamePulse = 1; }
+    }
+    flamePulse = Math.max(0, flamePulse - .03);
   }
 
   let mineAt = -1;
-  function rebuildConstellation() {
-    const points = stars.filter(s => s.metAt > -1).sort((a, b) => a.station - b.station || a.metAt - b.metAt).map(s => s.pos);
-    if (mineAt >= 0 && time - mineAt > 7) points.push(mineWorld.clone());
-    constellation.geometry.dispose(); constellation.geometry = new THREE.BufferGeometry().setFromPoints(points.length > 1 ? points : []);
-  }
 
   // ─── State ───
   type State = "idle" | "intro" | "walk" | "finale" | "return" | "home";
@@ -515,7 +559,7 @@ export function createRite(o: Options) {
   try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch { saved = null; }
   const showMine = () => { placeMine(mineTarget(), 1); mine.material.opacity = 1; mineHalo.material.opacity = .22; mineHit.visible = true; if (!targets.includes(mineHit)) targets.push(mineHit); };
   /** After a completed walk, the road stays lit: every later visit begins with the fires you left. */
-  function remembered() { showMine(); setCairns(1); crestLit = 1; live.forEach(L => { L.done = true; L.doneAt = -1000; }); growWheat(1000); stars.forEach(x => { x.metAt = -1000; }); standLit = 1; rebuildConstellation(); }
+  function remembered() { showMine(); setCairns(1); crestLit = 1; live.forEach(L => { L.done = true; L.doneAt = -1000; }); growWheat(1000); stars.forEach(x => { x.metAt = -1000; }); standLit = 1; mineRemembered = true; figureGlow = .7; rebuildConstellation(); }
   if (saved) remembered();
 
   // ─── DOM: a line of narration, the year, a quiet hint, nothing else in the way ───
@@ -553,15 +597,15 @@ export function createRite(o: Options) {
     if (i === 7) { api?.clearInfo(); sound.cue("finale"); mineAt = time; mine.material.opacity = 1; mineHalo.material.opacity = 0; placeMine(altarTop, 0); state = "finale"; finaleAt = time; }
     phase = "after"; phaseAt = time; setLine(say(L.st.after, lang, name)); setHint(""); lineUntil = 0;
     const first = stars.findIndex(y => y.station === i);
-    if (L.st.kind !== "axial") stars.forEach((x, k) => { if (x.station === i) setTimeout(() => spark(x.pos, 1.1, () => wake(k, k === first)), 900 + (k - first) * 700); });
+    if (L.st.kind !== "axial") stars.forEach((x, k) => { if (x.station === i) setTimeout(() => spark(starWorld(k), 1.1, () => wake(k, k === first)), 900 + (k - first) * 700); });
     api?.announce(say(L.st.after, lang, name));
   }
 
   function resetWalk() {
     live.forEach(L => { L.done = false; L.doneAt = -1; L.reset?.(); }); index = 0; s = 0; mineAt = -1; finaleAt = -1; civWoken = 0; crossed = false; passed.clear();
-    stars.forEach(x => { x.metAt = -1; x.raise = 0; x.beam.visible = false; }); rebuildConstellation(); setCairns(0);
-    mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true; civWeb.geometry.setDrawRange(0, 0);
-    (civWeb.material as THREE.LineBasicMaterial).opacity = 0; civTie.material.opacity = 0; trail.material.opacity = 0; standLit = 0; crestLit = 0;
+    stars.forEach(x => { x.metAt = -1; x.raise = 0; x.beam.visible = false; }); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setCairns(0);
+    mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true;
+    trail.material.opacity = 0; standLit = 0; crestLit = 0;
   }
   function begin() {
     sound.wake(); sound.hush(); startCard.hidden = true; name = (nameInput.value || "").trim().slice(0, 10); pressed = 0; paintTablet();
@@ -613,7 +657,7 @@ export function createRite(o: Options) {
   // Keyboard and assistive alternative: the act happens at once.
   actBtn.addEventListener("click", () => {
     if (state !== "walk" || phase !== "act") return; const st = live[index].st;
-    if (st.actKind === "raise") { const k = stars.findIndex(x => x.station === index && x.metAt < 0 && x.raise >= 0); if (k >= 0) { stars[k].raise = -99; spark(stars[k].pos, .9, () => wake(k, true)); } }
+    if (st.actKind === "raise") { const k = stars.findIndex(x => x.station === index && x.metAt < 0 && x.raise >= 0); if (k >= 0) { stars[k].raise = -99; spark(starWorld(k), .9, () => wake(k, true)); } }
     else if (st.actKind === "write") { pressed = [...(name || (lang === "zh" ? "我" : "I"))].length + 1; paintTablet(); complete(index); }
     else complete(index);
   });
@@ -656,14 +700,14 @@ export function createRite(o: Options) {
   };
 
   // ─── Frame update ───
-  const tmp = new THREE.Vector3(), look = new THREE.PerspectiveCamera(), fog = scene.fog as THREE.FogExp2, baseFog = fog.color.clone(), baseDensity = fog.density, moonBase = o.moonLight.intensity, bounceBase = o.moonBounce.intensity;
+  const UP = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3(), look = new THREE.PerspectiveCamera(), fog = scene.fog as THREE.FogExp2, baseFog = fog.color.clone(), baseDensity = fog.density, moonBase = o.moonLight.intensity, bounceBase = o.moonBounce.intensity;
   const overviewQ = (() => { const c = new THREE.PerspectiveCamera(); c.position.fromArray(overview.position); c.lookAt(new THREE.Vector3(...overview.target)); return c.quaternion.clone(); })();
   function face(target: THREE.Vector3, rate: number) {
     if (!api || api.looking || performance.now() - api.lastLook < 2200) return;
     look.position.copy(camera.position); look.lookAt(target); camera.quaternion.slerp(look.quaternion, Math.min(1, rate)); api.syncAngles();
   }
   if (new URLSearchParams(location.search).has("ritedebug")) (window as unknown as { __rite: unknown }).__rite = {
-    get state() { return { state, index, phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), cairnsLit: cairns.filter(c => c.lit > 0).length, cairns: N, met: stars.filter(x => x.metAt > -1).length, civWoken, year: yearText, audio: sound.ready }; },
+    get state() { return { state, index, phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), cairnsLit: cairns.filter(c => c.lit > 0).length, cairns: N, met: stars.filter(x => x.metAt > -1).length, civWoken, year: yearText, audio: sound.ready, sky: +o.civ.group.rotation.y.toFixed(4), ft: finaleAt >= 0 ? +(time - finaleAt).toFixed(1) : -1 }; },
     complete: (i: number) => complete(i), wake: (i: number) => wake(i, false), go: (d: number) => { s = d; }, home: () => returnHome(),
   };
   let dirty = false, dawn = 0, aurora = 0, ducked = false;
@@ -677,9 +721,9 @@ export function createRite(o: Options) {
       music.ash = ashDone ? 0 : sm(420, 440, s);
       music.candle = ashDone ? 1 - sm(494, 518, s) : 0;
       music.ascent = ashDone ? sm(494, 518, s) * (.55 + .45 * sm(zones.ascent[0], LEN, s)) : 0;
-      ambience.forest = 1 - sm(140, 165, s); ambience.open = sm(140, 165, s) * (1 - sm(425, 440, s)); ambience.ash = sm(425, 440, s) * (1 - sm(500, 515, s)); ambience.crest = sm(500, 515, s);
+      ambience.forest = 1 - sm(28, 56, s); ambience.open = sm(28, 56, s) * (1 - sm(425, 440, s)); ambience.ash = sm(425, 440, s) * (1 - sm(500, 515, s)); ambience.crest = sm(500, 515, s);
     }
-    if (state === "finale") { const ft = t - finaleAt; music.finale = 1; music.hold = sm(56, 63, ft); ambience.crest = 1 - sm(4, 20, ft) * .5; }
+    if (state === "finale") { const ft = t - finaleAt; music.finale = 1; music.hold = sm(68, 75, ft); ambience.crest = 1 - sm(4, 20, ft) * .5; }
     if (state === "return") { const rt = t - returnAt; music.homeward = 1; music.finale = 1 - sm(0, 4, rt); music.hold = 0; ambience.open = .5 * (1 - sm(28, 38, rt)); }
     if (state === "home" || (state === "idle" && homeAt > 0 && t - homeAt < 24)) music.homeward = 1;
     return { music, ambience };
@@ -711,7 +755,7 @@ export function createRite(o: Options) {
           const p = at(s), bob = walking && !still ? Math.sin(stride * Math.PI) * .028 * Math.min(1, speed / 2) : 0, eye = EYE - kneel * .75 + bob;
           camera.position.lerp(tmp.set(p.x, p.y + eye, p.z), still ? 1 : Math.min(1, dt * 6));
           if (walking) { const a = at(s + 9); face(a.add(new THREE.Vector3(0, EYE - .15 + (a.y - p.y) * .3, 0)), dt * 1.8); }
-          else if (phase === "act" && st.actKind === "raise") { const k = raiseTarget >= 0 ? raiseTarget : stars.findIndex(x => x.station === index && x.metAt < 0); face(k >= 0 ? stars[k].pos : L.focus, dt * 1.2); }
+          else if (phase === "act" && st.actKind === "raise") { const k = raiseTarget >= 0 ? raiseTarget : stars.findIndex(x => x.station === index && x.metAt < 0); face(k >= 0 ? starWorld(k) : L.focus, dt * 1.2); }
           else if (phase !== "after" || st.kind !== "axial") { if (phase !== "walk") face(L.focus, dt * 1.5); }
         }
       }
@@ -733,7 +777,7 @@ export function createRite(o: Options) {
         const pressing = holdAct || keyAct;
         if (st.actKind === "write") { if (pressing) { writeT += dt; if (writeT > .45) { writeT = 0; pressed++; paintTablet(); sound.step(0); } } if (pressed > [...(name || (lang === "zh" ? "我" : "I"))].length) complete(index, actHit); }
         else if (st.actKind === "raise") { const k = raiseTarget >= 0 ? raiseTarget : keyAct ? stars.findIndex(x => x.station === index && x.metAt < 0 && x.raise >= 0) : -1;
-          if (pressing && k >= 0) { stars[k].raise += dt; if (stars[k].raise > 1) { stars[k].raise = -99; const target = k; spark(stars[k].pos, .9, () => wake(target, true)); raiseTarget = -1; holdAct = false; } } }
+          if (pressing && k >= 0) { stars[k].raise += dt; if (stars[k].raise > 1) { stars[k].raise = -99; const target = k; spark(starWorld(k), .9, () => wake(target, true)); raiseTarget = -1; holdAct = false; } } }
         else { holdT = pressing ? holdT + dt : Math.max(0, holdT - dt * 2); if (st.kind === "heavens") armK = Math.min(1, holdT / 1.5); if (holdT > (st.kind === "you" ? 2.4 : st.kind === "fire" ? 1.8 : 1.5)) complete(index, actHit); }
       }
       if (state === "walk" && phase === "after" && t - phaseAt > 6) { phase = "walk"; phaseAt = t; setLine(""); }
@@ -769,7 +813,7 @@ export function createRite(o: Options) {
       pool.forEach((l, k) => { const n = nearest[k]; if (!n) { l.intensity = 0; return; } l.position.copy(n.c.top).add(new THREE.Vector3(0, .35, 0)); l.intensity = 3.4 * n.c.lit * fl * (1 - g * .6); });
       standFlame.set(standLit); standFlame.material.uniforms.uTime0.value = sceneTime; standFlame.material.uniforms.uGlobal.value = fl; standLight.intensity = standLit * 2.6 * fl;
       // ── the war: smoke over the sky, the moon dims, cinders fall, your flame almost goes out; at the end of the road the air clears
-      const clear = state === "finale" ? sm(18, 26, t - finaleAt) : state === "return" ? 1 - sm(0, 1, (t - returnAt) / 26) : 0;
+      const clear = state === "finale" ? sm(24, 32, t - finaleAt) : state === "return" ? 1 - sm(0, 1, (t - returnAt) / 26) : 0;
       o.skyDim.value = g; o.starDim.value = g;
       fog.color.lerpColors(baseFog, new THREE.Color(0x1a0f0c), g); fog.density = (baseDensity + g * .03) * (1 - .55 * clear);
       o.moonLight.intensity = moonBase * (1 - g * .8); o.moonBounce.intensity = bounceBase * (1 - g * .65);
@@ -791,15 +835,18 @@ export function createRite(o: Options) {
       const journeying = state !== "idle" && state !== "intro";
       for (const e of echoes) { const d = e.pos.distanceTo(camera.position), a = journeying ? e.base * sm(8, 18, d) * sm(140, 60, d) * (1 - g) : 0; e.figure.material.opacity = a; e.ember.material.opacity = a * 2.2 * fl; e.figure.visible = e.ember.visible = a > .003; }
       // ── the walk's stars
-      for (const x of stars) {
-        const met = x.metAt > -1, hidden = (x.station === 6 && !live[6].done) || (g > .4 && x.station !== 6), pulse = .9 + .1 * Math.sin(t * 1.7 + x.pos.x), charge = Math.max(0, x.raise);
-        const a = hidden ? .04 : 1; x.core.material.opacity = a; x.halo.material.opacity = a * (met ? .26 : .14 + charge * .3); x.flare.material.opacity = a * (met ? .5 : .28 + charge * .4);
-        x.core.scale.setScalar(STAR * (met ? 1.45 : 1 + charge * .7) * pulse); x.halo.scale.setScalar(STAR * (met ? 5 : 3.6 + charge * 1.5) * pulse); x.flare.scale.setScalar(STAR * (met ? 4.6 : 3.4) * pulse); x.flare.material.rotation = t * .05;
-        x.core.material.color.setRGB(1, met ? .86 : .96, met ? .62 : .88);
+      if (state !== "finale") figureGlow += ((mineRemembered || live[7].done ? .7 : 0) - figureGlow) * Math.min(1, dt * .5);
+      stars.forEach((x, i) => {
+        const met = x.metAt > -1, hidden = (x.station === 6 && !live[6].done) || (g > .4 && x.station !== 6), pulse = .9 + .1 * Math.sin(t * 1.3 + i * 2.1), charge = Math.max(0, x.raise);
+        const a = hidden ? .05 : 1, glow = 1 + figureGlow * .25;
+        x.core.material.opacity = a * (met ? 1 : .5 + charge * .5); x.halo.material.opacity = a * (met ? .22 + figureGlow * .1 : .06 + charge * .3); x.flare.material.opacity = a * (met ? .5 : .1 + charge * .4);
+        x.core.scale.setScalar(R * (met ? .0105 * glow : .006 + charge * .004) * pulse); x.halo.scale.setScalar(R * (met ? .034 * glow : .02 + charge * .02) * pulse); x.flare.scale.setScalar(R * (met ? .04 : .024) * pulse); x.flare.material.rotation = t * .04 + i;
+        x.core.material.color.setRGB(1, met ? .86 : .95, met ? .62 : .9);
         x.figure.material.opacity = met ? sm(0, 1, (t - x.metAt - 1) / 2) * .27 * (1 - g * .6) : 0;
-        const b = x.beam.material as THREE.MeshBasicMaterial; b.opacity = met ? .42 * Math.exp(-(t - x.metAt) * .45) + .022 + (state === "finale" || state === "return" ? .05 : 0) : 0; x.beam.visible = b.opacity > .004;
-      }
-      constellation.material.opacity = .45 * (1 - g);
+        const b = x.beam.material as THREE.MeshBasicMaterial; b.opacity = met && !hidden ? .5 * Math.exp(-(t - x.metAt) * .35) * (1 - sm(10, 16, t - x.metAt)) : 0; x.beam.visible = b.opacity > .004;
+        if (x.beam.visible) { const dir = starWorld(i).sub(x.foot).normalize(); x.beam.position.copy(x.foot).addScaledVector(dir, 130); x.beam.quaternion.setFromUnitVectors(UP, dir); }
+      });
+      drawRibbons(dt, g);
       // ── sparks of your fire
       for (let k = sparks.length - 1; k >= 0; k--) { const sp = sparks[k], u = Math.min(1, (t - sp.t0) / sp.dur), mid = sp.from.clone().lerp(sp.to, .5).add(new THREE.Vector3(0, 2, 0));
         sp.sprite.position.copy(sp.from).multiplyScalar((1 - u) * (1 - u)).addScaledVector(mid, 2 * u * (1 - u)).addScaledVector(sp.to, u * u); sp.sprite.scale.setScalar(.35 + u * .6);
@@ -809,16 +856,19 @@ export function createRite(o: Options) {
         if (ft < 7.2) placeMine(altarTop.clone().lerp(mineTarget(), Math.pow(k, 2.4)), k); mineHalo.material.opacity = .25 * k;
         const a = trail.geometry.attributes.position as THREE.BufferAttribute; a.setXYZ(0, altarTop.x, altarTop.y, altarTop.z); a.setXYZ(1, mineWorld.x, mineWorld.y, mineWorld.z); a.needsUpdate = true;
         trail.material.opacity = .7 * Math.min(1, ft) * (1 - sm(7, 11, ft));
-        if (ft > 7.1 && ft - dt <= 7.1) { rebuildConstellation(); mineHit.visible = true; if (!targets.includes(mineHit)) targets.push(mineHit); }
+        if (ft > 6.6 && ft - dt <= 6.6) { rebuildConstellation(); mineHit.visible = true; if (!targets.includes(mineHit)) targets.push(mineHit); sound.bell(86, .05); }
+        figureGlow = sm(7.5, 10, ft) * (1 - sm(26, 34, ft) * .3);
+        // the flame joins the hand; the whole figure brightens; then the shared sky wakes; then you turn for home
         if (ft < 7.5) face(mineWorld, dt * 1.4);
-        if (ft > 7.5 && ft < 18) { setLine(ft < 12.5 ? riteUi.together[lang] : riteUi.together2[lang]); wakeCiv(Math.floor((ft - 7.5) / 9 * civOrder.length) + 1); face(camera.position.clone().add(new THREE.Vector3(0, 30, 0)).addScaledVector(homeward, -18), dt * .6); }
-        if (ft > 18) { face(FIRE.clone().add(new THREE.Vector3(0, 6, 0)), dt * .7); setLine(ft < 24 ? riteUi.lookBack[lang] : riteUi.lookBack2[lang]); if (ft > 27) homeBtn.hidden = false; }
+        else if (ft < 18) face(skyPoint("laozi"), dt * .9);
+        if (ft > 7.5 && ft < 13) setLine(riteUi.figure[lang]); else if (ft >= 13 && ft < 18) setLine(riteUi.flame[lang]);
+        if (ft > 18 && ft < 25) { setLine(ft < 21.5 ? riteUi.together[lang] : riteUi.together2[lang]); wakeCiv(Math.floor((ft - 18) / 6 * civOrder.length) + 1); face(camera.position.clone().add(new THREE.Vector3(0, 30, 0)).addScaledVector(homeward, -18), dt * .6); }
+        if (ft > 25) { face(FIRE.clone().add(new THREE.Vector3(0, 6, 0)), dt * .7); setLine(ft < 31 ? riteUi.lookBack[lang] : riteUi.lookBack2[lang]); if (ft > 34) homeBtn.hidden = false; }
       }
       if (state === "finale" || state === "return") {
         const glow = civGlow.array as Float32Array; for (let n = 0; n < civOrder.length; n++) glow[civOrder[n]] = n < civWoken ? Math.min(1, glow[civOrder[n]] + dt * 1.5) : 0; civGlow.needsUpdate = true;
-        (civWeb.material as THREE.LineBasicMaterial).opacity = Math.max(0, Math.min(.38, (t - finaleAt - 7.5) * .06)) * (state === "return" ? 1 - sm(0, 1, (t - returnAt) / 20) : 1);
-        if (civWoken > 0) { skyGroup.updateMatrixWorld(); const last = new THREE.Vector3().fromBufferAttribute(civGeo.attributes.position as THREE.BufferAttribute, civOrder[civWoken - 1]).applyMatrix4(skyGroup.matrixWorld);
-          const ta = civTie.geometry.attributes.position as THREE.BufferAttribute; ta.setXYZ(0, mineWorld.x, mineWorld.y, mineWorld.z); ta.setXYZ(1, last.x, last.y, last.z); ta.needsUpdate = true; civTie.material.opacity = Math.max(0, Math.min(.35, (t - finaleAt - 8) * .08)) * (state === "return" ? 1 - sm(0, 1, (t - returnAt) / 20) : 1); }
+        flyGifts();
+        if (t - finaleAt > 7.2) { const local = layout.get("you")!.clone().multiplyScalar(R), pulse = 1 + flamePulse * .35 + .06 * Math.sin(t * 2.3); mine.position.copy(local); mineHalo.position.copy(local); mine.scale.setScalar(R * .016 * pulse); mineHalo.scale.setScalar(R * .07 * (1 + flamePulse * .5)); }
       }
       // ── the glide home along the lit road
       if (state === "return" && glide) { const k = Math.min(1, (t - returnAt) / 38), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
@@ -827,14 +877,13 @@ export function createRite(o: Options) {
         camera.quaternion.slerp(q, Math.min(1, dt * 2.5)); api?.syncAngles();
         if (k >= 1) { camera.quaternion.copy(overviewQ); api?.syncAngles(); arrive(); } }
       if (state === "home") { const ht = t - homeAt; if (ht > 5.5) setLine(riteUi.welcome2[lang]); if (ht > 12) finishHome(); }
-      if ((state === "finale" && t - finaleAt > 7) || state === "return") { skyGroup.updateMatrixWorld(); mineWorld.copy(mine.position).applyMatrix4(skyGroup.matrixWorld);
-        const c = constellation.geometry.attributes.position as THREE.BufferAttribute | undefined; if (c && mineAt >= 0 && t - mineAt > 7) { c.setXYZ(c.count - 1, mineWorld.x, mineWorld.y, mineWorld.z); c.needsUpdate = true; } }
+      if ((state === "finale" && t - finaleAt > 7.2) || state === "return") { skyGroup.updateMatrixWorld(); mineWorld.copy(mine.position).applyMatrix4(skyGroup.matrixWorld); }
       // ── mood: the grade, the dawn behind home, the aurora, the air
       const inRite = journeying, ft = t - finaleAt;
       const forest = inRite ? 1 - sm(zones.forest[1] - 20, zones.forest[1] + 25, s) : 0, field = inRite ? sm(150, 178, s) * (1 - sm(240, 300, s)) : 0;
-      const dawnTarget = state === "finale" ? sm(16, 32, ft) * .95 : state === "return" || state === "home" ? .95 : 0;
+      const dawnTarget = state === "finale" ? sm(22, 38, ft) * .95 : state === "return" || state === "home" ? .95 : 0;
       dawn += (dawnTarget - dawn) * Math.min(1, dt * (dawnTarget > dawn ? .5 : .08)); o.skyDawn.value = dawn;
-      const auroraTarget = state === "finale" ? sm(7, 20, ft) : state === "return" || state === "home" ? 1 : 0;
+      const auroraTarget = state === "finale" ? sm(12, 26, ft) : state === "return" || state === "home" ? 1 : 0;
       aurora += (auroraTarget - aurora) * Math.min(1, dt * (auroraTarget > aurora ? .35 : .06)); o.skyAurora.value = aurora;
       tint.setRGB(1, 1, 1).lerp(COLD, forest * .8).lerp(WARM, field * .7).lerp(ASHEN, g).lerp(DAWN, dawn * .8);
       const k = Math.min(1, dt * 1.2);
@@ -870,7 +919,6 @@ export function createRite(o: Options) {
       sound.update(lit, g, s > zones.forest[1] && state === "walk" ? 1 : 0, scoreMix(t));
       const ducking = state !== "idle" || (homeAt > 0 && t - homeAt < 24); if (ducking !== ducked) { ducked = ducking; api?.duckMusic(ducking); }
       land.update(camera);
-      syncReflection();
       return state !== "idle" || sparks.length > 0 || stars.some(x => x.metAt > -1 && time - x.metAt < 8);
     },
   };

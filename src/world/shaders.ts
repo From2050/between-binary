@@ -4,7 +4,7 @@ export const skyVertex = `
 			varying vec3 vWorld;
 			void main() {
 				vDir = position;                                   // turns with the sky
-				vWorld = (modelMatrix * vec4(position, 1.0)).xyz;  // stays with the ground
+				vWorld = mat3(modelMatrix) * position;             // stays with the ground (the dome follows the camera)
 				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 			}
 		`;

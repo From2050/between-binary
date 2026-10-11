@@ -68,6 +68,7 @@ export function besideRoad(s: number, side: number, off: number): P {
 /** Where things happen, in metres from the fire. */
 export const THRESHOLD = 22;
 export const stationMeters = [0, 100, 172, 248, 322, 398, 474, riteLength];
+/** `forest` is the first, darkest stretch of open moor beyond home (the name is kept for the cues that use it). */
 export const zones = { forest: [12, 150] as const, field: [150, 205] as const, ash: [432, 506] as const, ascent: [506, riteLength] as const };
 const station = (i: number) => pointAt(stationMeters[i]);
 
@@ -137,12 +138,13 @@ const distHome = (x: number, z: number) => Math.min(...homePaths.map(([a, b, c, 
 }));
 
 /** The road's trees: [x, z, scale, variant, s]. Variants 0–2 are the near firs, 3 the distant silhouette.
- * A dark forest closes in for the first 150 m, opens onto fields and a few groves, and stops where the
- * country is burnt and where the last slope climbs bare to the crest. */
+ * The road leaves the trees around home and crosses open country under the whole sky: a few lone firs and
+ * small groves, none in the burnt country, almost none on the bare slope to the crest. */
 export const walkTrees: [number, number, number, number, number][] = (() => {
   const random = seeded(2026), trees: [number, number, number, number, number][] = [];
   const clear = [2, 4, 5].map((i, k) => [...station(i).slice(0, 2), [30, 25, 14][k]]);
-  const density = (s: number) => s < zones.forest[1] ? 1 : s < 205 ? 1 - sm(150, 205, s) * .86 : s < zones.ash[0] ? .16 : s < zones.ascent[0] ? 0 : .05;
+  const grove = (s: number) => Math.pow(Math.max(0, Math.sin(s / 31 + .6) * Math.sin(s / 11.5)), 2);
+  const density = (s: number) => s < 40 ? .7 - sm(20, 40, s) * .5 : s < zones.ash[0] ? .015 + .28 * grove(s) : s < zones.ascent[0] ? 0 : .02;
   const cellOf = (x: number, z: number) => Math.floor(x / 4) + "," + Math.floor(z / 4), taken = new Map<string, P[]>();
   const add = (x: number, z: number) => { const key = cellOf(x, z); taken.set(key, [...(taken.get(key) ?? []), [x, z]]); };
   const crowded = (x: number, z: number) => { const gx = Math.floor(x / 4), gz = Math.floor(z / 4);

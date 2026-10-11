@@ -66,7 +66,7 @@ export function addRoadside(o: {
     if (young) {
       const random = seeded(808), placements: Placement[] = [];
       for (let s = zones.forest[0] + 8; s < 205; s += o.small ? 2.6 : 1.3) {
-        if (random() > (s < zones.forest[1] ? .75 : .25)) continue;
+        if (random() > (s < 40 ? .5 : .03)) continue;
         const side = random() > .5 ? 1 : -1, off = 3.3 + Math.pow(random(), 1.3) * 16, [x, z] = besideRoad(s, side, off);
         if (distToWalk(x, z) < 3 || walkTrees.some(t => Math.hypot(t[0] - x, t[1] - z) < 1.6)) continue;
         if (Math.abs(s - stationMeters[1]) < 6 && side > 0 && off < 7) continue; // the painted rock stays clear
@@ -78,7 +78,7 @@ export function addRoadside(o: {
   if (o.ferns?.length) {
     const random = seeded(919), lists = o.ferns.map(() => [] as Placement[]);
     for (let s = zones.forest[0] + 4; s < 190; s += o.small ? .5 : .22) {
-      if (random() > (s < zones.forest[1] ? 1 : .3)) continue;
+      if (random() > (s < 40 ? 1 : .02)) continue;
       const side = random() > .5 ? 1 : -1, off = 1.7 + Math.pow(random(), 1.5) * 15, [x, z] = besideRoad(s, side, off);
       if (distToWalk(x, z) < 1.5) continue;
       const k = .55 + random() * .75; lists[Math.floor(random() * lists.length)].push({ x, z, s, scale: [k, k * (.85 + random() * .3), k], ry: random() * 6.28, sink: .01, color: new THREE.Color(.62 + random() * .2, .68 + random() * .15, .55) });
@@ -90,14 +90,14 @@ export function addRoadside(o: {
   if (o.grass) {
     const random = seeded(311), placements: Placement[] = [], [fx, fz] = besideRoad(stationMeters[2], -1, 1.9);
     for (let s = 30; s < riteLength + 30; s += small ? 1.1 : .5) for (const side of [-1, 1]) {
-      const zone = s < zones.forest[1] ? .3 : s < zones.ash[0] ? 1 : s < zones.ash[1] ? .45 : .8;
+      const zone = s < 40 ? .4 : s < zones.ash[0] ? 1 : s < zones.ash[1] ? .45 : .8;
       for (let k = 0; k < 3; k++) {
         if (random() > zone) continue;
         const off = 1.25 + Math.pow(random(), 1.7) * 17, [x, z] = besideRoad(Math.min(s + random() * .5, riteLength), side, off);
         if (s > riteLength && off < 6) continue;
         if (distToWalk(x, z) < 1.1 || Math.hypot(x - fx, z - fz) < 27) continue;
         const ash = s > zones.ash[0] - 4 && s < zones.ash[1] + 2, size = .7 + random() * .9;
-        const color = ash ? new THREE.Color(.34 + random() * .1, .29, .22) : s < zones.forest[1] ? new THREE.Color(.62 + random() * .2, .7, .56) : new THREE.Color(.78 + random() * .22, .8 + random() * .2, .62 + random() * .2);
+        const color = ash ? new THREE.Color(.34 + random() * .1, .29, .22) : s < 40 ? new THREE.Color(.62 + random() * .2, .7, .56) : new THREE.Color(.78 + random() * .22, .8 + random() * .2, .62 + random() * .2);
         placements.push({ x, z, s, scale: [size, size * (.8 + random() * .4) * (ash ? .7 : 1), size], ry: random() * 6.28, color, sink: .012 });
       }
     }

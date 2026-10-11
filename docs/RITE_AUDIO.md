@@ -22,8 +22,8 @@ python tools/compose-rite-music.py ash finale # 只重做其中幾段
 3. **最安靜的地方是灰燼。** 灰燼段只剩低頻、一個不肯解決的不協和音和緩慢的心跳。把火傳給蠟燭之後，主題第一次以獨奏回來。這個對比是整段旅程的情緒轉折。
 4. **終點與回家是一次性的樂段**，跟動畫同步：
    - 第 0–7 秒：星星升起，弦樂漸強。
-   - 第 7.6 秒：「我們，不是獨自走到這裡的」，合唱唱出主題。
-   - 第 18 秒：回頭看，換鋼琴接手。
+   - 第 7.6 秒：星座「持火者」亮起，合唱唱出主題；第 18 秒「我們，不是獨自走到這裡的」，共用星空甦醒。
+   - 第 25 秒：回頭看，換鋼琴接手。
    - 回家的滑行：全體奏，抵達營火時鋼琴輕聲收尾。
 5. **原本的鋼琴錄音（Friday Morning）在儀式期間自動淡出，回到家後才回來**，兩者不會疊在一起。
 6. **所有聲音都要先按「Sound on」才會播放**，音量跟著右上角的音量滑桿。
@@ -39,7 +39,7 @@ python tools/compose-rite-music.py ash finale # 只重做其中幾段
 | `ash` | 432 m → 傳火給蠟燭 | 40 s | 是 | 次低頻、不協和弦樂叢集、定音鼓心跳、遠方破碎的鐘聲。壓抑、近乎無聲 |
 | `candle` | 點亮蠟燭 → 506 m | 51.4 s | 是 | 小提琴獨奏主題、稀薄弦樂、鋼琴尾句。劫後的希望 |
 | `ascent` | 506 m → 山脊（最後的上坡） | 48 s | 是 | 弦樂八分音符脈動、定音鼓心跳、持續上行的和聲。越往上越大聲 |
-| `finale` | 手按上石頭那一刻起 | 約 64 s | 否 | 漸強、星星升起（7 s）、合唱主題（7.6 s）、鋼琴回望（18.4 s）、D add9 長音 |
+| `finale` | 手按上石頭那一刻起 | 約 80 s | 否 | 漸強、星星升起成為持火者的火焰（7 s）、合唱主題、星座亮起、共用星空甦醒（7.6–25 s）、鋼琴回望（25.4 s）、D add9 長音 |
 | `hold` | 在山脊上等待按「回家」 | 32 s | 是 | 開放的 D 和弦在呼吸、零星鋼片琴 |
 | `homeward` | 按下「回家」：滑行 38 s ＋ 抵家 | 約 56 s | 否 | 全體奏主題（弦樂、合唱、木笛、豎琴）；38.5 s 抵達營火時轉成鋼琴，以 D 大調和弦收尾 |
 
@@ -129,7 +129,7 @@ python tools/compose-rite-music.py ash finale # 只重做其中幾段
   [Hold before the peak]
   ```
 
-**8 · finale（路的盡頭，約 64 秒，要跟畫面同步）**
+**8 · finale（路的盡頭，約 80 秒，要跟畫面同步）**
 - Style: `epic emotional film score climax, full string orchestra and wordless choir, main theme in D major, harp glissando, celesta sparkle, timpani, swelling crescendo then tender piano reprise, catharsis, becoming one of the stars, ending on sustained D add9, no lyrics`
 - Lyrics:
   ```
@@ -140,7 +140,7 @@ python tools/compose-rite-music.py ash finale # 只重做其中幾段
   [Piano reprise, gentle, looking back home]
   [Long sustained D chord, fading]
   ```
-  剪輯對位：合唱主題約在 7.5 秒進來，鋼琴約在 18 秒接手。
+  剪輯對位：合唱主題約在 7.5 秒進來，一直唱到約 25 秒；鋼琴約在 25 秒接手。
 
 **9 · homeward（回家，約 56 秒）**
 - Style: `soaring orchestral film score, main theme in full, strings choir flute and harp, flying home over a road of fire at night, joyful and grateful, D major, broad 56 bpm, then quiet solo piano ending, warm resolution, no drums, no vocals`
