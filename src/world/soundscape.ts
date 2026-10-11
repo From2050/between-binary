@@ -8,6 +8,7 @@ export class Soundscape {
   private volume = 0.22;
   private fade?: ReturnType<typeof setInterval>;
   private revision = 0;
+  private ducked = false;
   private ramp(target: number) {
     clearInterval(this.fade);
     const audio = this.audio;
@@ -40,7 +41,7 @@ export class Soundscape {
       await this.audio.play();
       if (revision !== this.revision) return this.enabled;
       if (this.hidden) this.audio.pause();
-      else this.ramp(this.volume);
+      else this.ramp(this.ducked ? 0 : this.volume);
       return true;
     } catch (error) {
       if (revision === this.revision) this.enabled = false;
@@ -49,7 +50,13 @@ export class Soundscape {
   }
   setVolume(value: number) {
     this.volume = Math.max(0, Math.min(1, value));
-    if (this.enabled && !this.hidden) this.ramp(this.volume);
+    if (this.enabled && !this.hidden) this.ramp(this.ducked ? 0 : this.volume);
+  }
+  /** The walk has its own score: the piano steps aside while it plays, and returns after. */
+  duck(on: boolean) {
+    if (on === this.ducked) return;
+    this.ducked = on;
+    if (this.enabled && !this.hidden) this.ramp(on ? 0 : this.volume);
   }
   // Reserved for future separately recorded environmental audio. No synthesized noise.
   proximity(_distance: number, _pan = 0) {}
@@ -63,7 +70,7 @@ export class Soundscape {
     } else if (this.enabled) {
       const revision = this.revision;
       void this.audio.play().then(() => {
-        if (revision === this.revision && this.enabled && !this.hidden) this.ramp(this.volume);
+        if (revision === this.revision && this.enabled && !this.hidden) this.ramp(this.ducked ? 0 : this.volume);
         else this.audio?.pause();
       }).catch(() => {
         this.enabled = false;

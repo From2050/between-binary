@@ -488,6 +488,7 @@ export function createExploration(
     announce,
     moveTo: move,
     returnToPath,
+    duckMusic: (on: boolean) => sound.duck(on),
     get lastLook() {
       return lastLook;
     },

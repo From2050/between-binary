@@ -13,6 +13,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { civilizationStars } from "../data/civilizationStars";
 
 import { createExploration } from "./exploration";
@@ -78,6 +79,18 @@ export async function initWorld() {
   );
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+  // A final grade in display space. It stays neutral until the walk asks for a mood.
+  const grade = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, uVignette: { value: 0 }, uGrain: { value: 0 }, uSat: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uTime: { value: 0 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float uVignette, uGrain, uSat, uTime; uniform vec3 uTint; varying vec2 vUv;
+      void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb; float l = dot(col, vec3(.2126, .7152, .0722));
+        col = mix(vec3(l), col, uSat) * uTint;
+        vec2 d = (vUv - .5) * vec2(1.15, 1.); col *= 1. - uVignette * smoothstep(.22, .82, length(d));
+        float n = fract(sin(dot(vUv * vec2(1913.1, 2741.7) + fract(uTime) * 61.7, vec2(12.9898, 78.233))) * 43758.5453) - .5;
+        gl_FragColor = vec4(col + n * uGrain * (1. - l * .6), c.a); }`,
+  });
+  composer.addPass(grade);
 
   // ─── Seeded noise (terrain + scatter) ───
   function hash2(x: number, y: number) {
@@ -256,7 +269,7 @@ export async function initWorld() {
   const SKY_SPIN = 0.0018;
   const starsGroup = new THREE.Group();
   scene.add(starsGroup);
-  const skyUniforms = { uTime: { value: 0 }, uDim: { value: 0 } };
+  const skyUniforms = { uTime: { value: 0 }, uDim: { value: 0 }, uDawn: { value: 0 }, uAurora: { value: 0 } };
   {
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -414,6 +427,7 @@ export async function initWorld() {
   let riteRock: {geometry:THREE.BufferGeometry;material:THREE.Material|THREE.Material[]}|undefined;
   let riteGrass: {geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial}|undefined;
   let riteForest: THREE.Group|undefined;
+  const riteFerns: {geometry:THREE.BufferGeometry;material:THREE.Material}[]=[];
 
   // ─── Places ───
   type Place = {
@@ -636,6 +650,13 @@ export async function initWorld() {
     populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object),(x,z)=>distToPath(x,z)<3.6);
     populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
     riteForest=forest.scene;
+    understory.scene.children.filter(n=>n.name.startsWith("fern")).forEach(source=>source.traverse(node=>{
+      if(!(node instanceof THREE.Mesh))return;
+      const geo=node.geometry.clone().applyMatrix4(node.matrixWorld);geo.computeBoundingBox();
+      const box=geo.boundingBox!,center=box.getCenter(new THREE.Vector3());geo.translate(-center.x,-box.min.y,-center.z);
+      const material=(node.material as THREE.MeshStandardMaterial).clone();material.alphaTest=.42;material.transparent=false;material.depthWrite=true;material.side=THREE.DoubleSide;material.roughness=.92;
+      riteFerns.push({geometry:geo,material});
+    }));
     // Source meshes the walk reuses: one scanned rock (normalised to 1 m) and one grass tuft.
     details.scene.children.find(n=>/rock/.test(n.name))?.traverse(node=>{
       if(riteRock||!(node instanceof THREE.Mesh))return;
@@ -773,7 +794,9 @@ export async function initWorld() {
   ready();
   const exploration = createExploration(camera, canvas, starsGroup, places);
   // The walk: shares only the fire with the rest of the world.
-  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,
+  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,ferns:riteFerns,
+    grade:grade.uniforms as unknown as {uVignette:{value:number};uGrain:{value:number};uSat:{value:number};uTint:{value:THREE.Color};uTime:{value:number}},
+    skyDawn:skyUniforms.uDawn,skyAurora:skyUniforms.uAurora,
     mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce,
     civ:{points:starsGroup.getObjectByName("civ-stars") as THREE.Points,group:starsGroup}});
   rite.attach(exploration);

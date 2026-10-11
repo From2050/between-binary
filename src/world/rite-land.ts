@@ -12,6 +12,7 @@ const seeded = (seed: number) => { let s = seed; return () => ((s = (s * 16807) 
 export function addRoadside(o: {
   scene: THREE.Scene; height: (x: number, z: number) => number; wind: ReturnType<typeof createWind>; small: boolean;
   forest?: THREE.Group; rock?: Source; grass?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial };
+  ferns?: Source[];
 }) {
   const { scene, height, wind, small } = o;
   const group = new THREE.Group(); group.name = "The road's country"; scene.add(group);
@@ -60,6 +61,29 @@ export function addRoadside(o: {
         .map(([x, z, scale, , s], i) => ({ x, z, s, scale: [scale, scale, scale] as [number, number, number], ry: i * 2.399 + index * .8, sink: .045 }));
       if (placements.length) instance(parts, placements, index === 3 ? 1200 : 170, { shadow: index !== 3, wind: "canopy" });
     }
+    // Young firs between the trunks give the forest a middle height, so it closes in at eye level.
+    const young = variants.get(2);
+    if (young) {
+      const random = seeded(808), placements: Placement[] = [];
+      for (let s = zones.forest[0] + 8; s < 205; s += o.small ? 2.6 : 1.3) {
+        if (random() > (s < zones.forest[1] ? .75 : .25)) continue;
+        const side = random() > .5 ? 1 : -1, off = 3.3 + Math.pow(random(), 1.3) * 16, [x, z] = besideRoad(s, side, off);
+        if (distToWalk(x, z) < 3 || walkTrees.some(t => Math.hypot(t[0] - x, t[1] - z) < 1.6)) continue;
+        if (Math.abs(s - stationMeters[1]) < 6 && side > 0 && off < 7) continue; // the painted rock stays clear
+        const k = .26 + random() * .26; placements.push({ x, z, s, scale: [k, k * (.9 + random() * .3), k], ry: random() * 6.28, sink: .02 });
+      }
+      instance(young, placements, 130, { shadow: true, wind: "canopy" });
+    }
+  }
+  if (o.ferns?.length) {
+    const random = seeded(919), lists = o.ferns.map(() => [] as Placement[]);
+    for (let s = zones.forest[0] + 4; s < 190; s += o.small ? .5 : .22) {
+      if (random() > (s < zones.forest[1] ? 1 : .3)) continue;
+      const side = random() > .5 ? 1 : -1, off = 1.7 + Math.pow(random(), 1.5) * 15, [x, z] = besideRoad(s, side, off);
+      if (distToWalk(x, z) < 1.5) continue;
+      const k = .55 + random() * .75; lists[Math.floor(random() * lists.length)].push({ x, z, s, scale: [k, k * (.85 + random() * .3), k], ry: random() * 6.28, sink: .01, color: new THREE.Color(.62 + random() * .2, .68 + random() * .15, .55) });
+    }
+    o.ferns.forEach((fern, i) => instance([fern], lists[i], o.small ? 45 : 65, { shadow: false, wind: "plant" }));
   }
 
   // ─── Grass: thick in the open country, thin under the trees, dry and dark among the ashes ───

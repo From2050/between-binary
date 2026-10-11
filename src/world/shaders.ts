@@ -13,6 +13,8 @@ export const skyFragment = `
 			precision highp float;
 			uniform float uTime;
 			uniform float uDim;
+			uniform float uDawn;   // the end of the walk: first light behind home, in the east
+			uniform float uAurora; // the end of the walk: the aurora brightens and spreads overhead
 			varying vec3 vDir;
 			varying vec3 vWorld;
 
@@ -48,6 +50,8 @@ export const skyFragment = `
 				vec3 w = normalize(vWorld);  // world frame — horizon, distant glow, aurora
 				float h = w.y;
 
+				float east = max(0.0, dot(normalize(w.xz + vec2(1e-4)), normalize(vec2(0.97, -0.22))));
+				float dawnLow = exp(-max(h, 0.0) * 7.0), dawnHigh = exp(-max(h, 0.0) * 2.4);
 				vec3 zenith = vec3(0.0028, 0.004, 0.009);
 				vec3 horizon = vec3(0.003, 0.0045, 0.008);
 				vec3 col = mix(horizon, zenith, smoothstep(0.0, 0.42, h));
@@ -73,7 +77,7 @@ export const skyFragment = `
 				float s = starLayer(d, 95.0, 0.10, 1.4)*0.26
 						+ starLayer(d, 150.0, 0.07, 2.0)*0.16
 						+ starLayer(d, 220.0, 0.05, 2.8)*0.10;
-				col += vec3(0.85, 0.88, 1.0) * s * fade;
+				col += vec3(0.85, 0.88, 1.0) * s * fade * (1.0 - uDawn * 0.7 * east * dawnHigh);
 				float sb = starLayer(d, 18.0, 0.02, 1.0);
 				col += vec3(1.0, 0.85, 0.65) * sb * 0.0 * fade;
 
@@ -82,7 +86,14 @@ export const skyFragment = `
                 float aBand = smoothstep(0.02, 0.16, h) * (1.0 - smoothstep(0.28, 0.55, h));
                 float g = max(0.0, dot(normalize(w.xz + vec2(1e-4)), normalize(vec2(0.85, 0.4))));
                 float curtain = fbm(vec3(w.x*4.0, w.z*4.0, uTime*0.045));
-                col += vec3(0.12, 0.75, 0.55) * aBand * pow(g, 3.0) * pow(curtain, 2.5) * 0.32;
+                col += vec3(0.12, 0.75, 0.55) * aBand * pow(g, 3.0) * pow(curtain, 2.5) * 0.32 * (1.0 + uAurora * 1.4);
+                // overhead, the curtain arcs across the whole sky at the end of the walk
+                float arc = smoothstep(0.12, 0.42, h) * (1.0 - smoothstep(0.62, 0.96, h));
+                float folds = fbm(vec3(w.x * 2.2 + uTime * 0.03, w.z * 2.2, uTime * 0.05));
+                float ribbon = exp(-pow((w.z + 0.25 * sin(w.x * 3.0 + uTime * 0.04)) * 3.2, 2.0));
+                col += mix(vec3(0.10, 0.72, 0.50), vec3(0.42, 0.20, 0.62), smoothstep(0.35, 0.9, h)) * arc * ribbon * pow(folds, 2.2) * 0.42 * uAurora;
+                // first light, low in the east, behind home
+                col += (vec3(0.34, 0.14, 0.05) * pow(east, 5.0) * dawnLow * 1.15 + vec3(0.025, 0.045, 0.085) * pow(east, 1.6) * dawnHigh) * uDawn;
 
 				// the walk's war station: smoke over the stars and the aurora
 				col *= 1.0 - uDim * 0.82;
@@ -100,10 +111,10 @@ export const starsVertex = `
 		varying vec3 vColor;
 		varying float vTw;
 		void main() {
-			vColor = color * (1.0 + glow * 1.3);
+			vColor = color * (1.0 + glow * 1.1);
 			vTw = 0.74 + 0.26 * sin(uTime * (0.5 + fract(phase) * 0.9) + phase * 6.2831);
 			gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-			gl_PointSize = uSize * (1.0 + glow * 1.5);
+			gl_PointSize = uSize * (1.0 + glow * .8);
 		}
 	`;
 

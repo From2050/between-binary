@@ -1,0 +1,92 @@
+{
+  "ember": {
+    "loop": true,
+    "length": 51.4286,
+    "start": 0.25,
+    "level": 1
+  },
+  "forest": {
+    "loop": true,
+    "length": 48.0,
+    "start": 0.25,
+    "level": 1
+  },
+  "fields": {
+    "loop": true,
+    "length": 64.0,
+    "start": 0.25,
+    "level": 0.9
+  },
+  "voices": {
+    "loop": true,
+    "length": 56.0,
+    "start": 0.25,
+    "level": 0.85
+  },
+  "ash": {
+    "loop": true,
+    "length": 40.0,
+    "start": 0.25,
+    "level": 1
+  },
+  "candle": {
+    "loop": true,
+    "length": 51.4286,
+    "start": 0.25,
+    "level": 0.9
+  },
+  "ascent": {
+    "loop": true,
+    "length": 48.0,
+    "start": 0.25,
+    "level": 0.85
+  },
+  "finale": {
+    "loop": false,
+    "length": 72.0454,
+    "start": 0,
+    "level": 1
+  },
+  "hold": {
+    "loop": true,
+    "length": 32.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "homeward": {
+    "loop": false,
+    "length": 55.7284,
+    "start": 0,
+    "level": 0.95
+  },
+  "amb-forest": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.9
+  },
+  "amb-open": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-ash": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.9
+  },
+  "amb-crest": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "steps": {
+    "loop": false,
+    "length": 4.0,
+    "start": 0,
+    "level": 1
+  }
+}

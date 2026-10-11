@@ -9,3 +9,8 @@ Original: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Friday%20Mo
 Retrieved: 2026-09-07. Original audio unedited. Playback starts at 22% volume
 with a 1.2-second fade; looping uses the recording's natural ending.
 The on-screen Field guide includes author, source, and license links.
+
+# The walk (public/audio/rite/)
+
+Original prototype score and ambience for the walk, synthesized by tools/compose-rite-music.py
+for this site. No samples or third-party recordings. See docs/RITE_AUDIO.md.

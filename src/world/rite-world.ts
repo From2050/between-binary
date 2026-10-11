@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { fireFragment } from "./shaders";
 import { pointAt, riteLength, stationMeters, THRESHOLD, zones } from "./rite-path.ts";
 import { riteStations, riteUi, resolveFigure, say, chronologicalSky, yearsAgoAt, yearLabel, type Lang, type RiteStation } from "./rite.ts";
-import { createRiteSound } from "./rite-sound.ts";
+import { createRiteSound, type RiteMix } from "./rite-sound.ts";
 import { addRoadside } from "./rite-land.ts";
+import { addAtmosphere } from "./rite-atmos.ts";
 import { overview } from "./journey.ts";
 import type { createWind } from "./wind";
 
@@ -15,6 +16,7 @@ export type ExplorationApi = {
   announce(message: string): void;
   moveTo(position: readonly number[], target: readonly number[], done: () => void): void;
   returnToPath(instant?: boolean): void;
+  duckMusic(on: boolean): void;
   readonly lastLook: number;
   readonly looking: boolean;
   readonly paused: boolean;
@@ -40,8 +42,13 @@ type Options = {
   small: boolean;
   rock?: { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] };
   grass?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial };
-  /** the clearing's firs, reused along the road */
+  /** the clearing's firs and ferns, reused along the road */
   forest?: THREE.Group;
+  ferns?: { geometry: THREE.BufferGeometry; material: THREE.Material }[];
+  /** the final grade, which the walk steers through its moods */
+  grade: { uVignette: { value: number }; uGrain: { value: number }; uSat: { value: number }; uTint: { value: THREE.Color }; uTime: { value: number } };
+  skyDawn: { value: number };
+  skyAurora: { value: number };
   mirror: (object: THREE.Object3D) => THREE.Object3D;
   skyDim: { value: number };
   starDim: { value: number };
@@ -151,7 +158,8 @@ export function createRite(o: Options) {
   const beside = (s: number, side: number, off: number) => { const t = tangent(s), p = at(s); p.x += -t.z * side * off; p.z += t.x * side * off; p.y = height(p.x, p.z); return p; };
 
   const root = new THREE.Group(); root.name = "The walk"; scene.add(root);
-  const land = addRoadside({ scene, height, wind: o.wind, small: o.small, forest: o.forest, rock: o.rock, grass: o.grass });
+  const land = addRoadside({ scene, height, wind: o.wind, small: o.small, forest: o.forest, rock: o.rock, grass: o.grass, ferns: o.ferns });
+  const air = addAtmosphere({ scene, height, small: o.small });
   const targets: THREE.Object3D[] = [];
   const stone = new THREE.MeshStandardMaterial({ color: 0x6d675d, roughness: 1 });
   const darkWood = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: .95 });
@@ -228,7 +236,7 @@ export function createRite(o: Options) {
         gl_PointSize = uPx * max(2.6 * size, size * 110. / d); }`,
     fragmentShader: `uniform sampler2D uMap; varying float vA; void main(){ float a = texture2D(uMap, gl_PointCoord).a * vA; if (a < .004) discard; gl_FragColor = vec4(1., .58, .25, a); }` });
   const glowPoints = new THREE.Points(glowGeo, glowMat); glowPoints.frustumCulled = false; root.add(glowPoints);
-  const groundGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xff9a4a, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), N);
+  const groundGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xff9a4a, transparent: true, opacity: .12, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), N);
   const gm = new THREE.Object3D();
   const placeGlow = (i: number) => { const c = cairns[i], k = sm(0, 1, c.lit); gm.position.set(c.top.x, height(c.top.x, c.top.z) + .03, c.top.z); gm.scale.setScalar(Math.max(.001, .4 + .6 * k) * (c.lit > 0 ? 1 : .001)); gm.updateMatrix(); groundGlow.setMatrixAt(i, gm.matrix); };
   for (let i = 0; i < N; i++) placeGlow(i);
@@ -237,8 +245,13 @@ export function createRite(o: Options) {
   function setCairns(value: number) { cairns.forEach((c, i) => { c.lit = value; iLit[i] = glowLit[i] = value; placeGlow(i); }); litAttr.needsUpdate = glowLitAttr.needsUpdate = true; groundGlow.instanceMatrix.needsUpdate = true; }
 
   // ─── Those who walked before: faint figures beside the road, each carrying a small light ───
-  const figureTex = canvasTexture(256, 512, g => { const gr = g.createLinearGradient(0, 40, 0, 512); gr.addColorStop(0, "rgba(255,240,210,1)"); gr.addColorStop(.6, "rgba(255,200,130,.55)"); gr.addColorStop(1, "rgba(255,170,90,0)"); g.fillStyle = gr; g.shadowColor = "rgba(255,200,140,.9)"; g.shadowBlur = 30;
-    g.beginPath(); g.arc(128, 78, 30, 0, Math.PI * 2); g.fill(); g.beginPath(); g.moveTo(104, 112); g.quadraticCurveTo(58, 118, 54, 170); g.lineTo(36, 500); g.lineTo(220, 500); g.lineTo(202, 170); g.quadraticCurveTo(198, 118, 152, 112); g.closePath(); g.fill(); });
+  const figureTex = canvasTexture(256, 512, g => {
+    const body = () => { g.beginPath(); g.arc(128, 78, 30, 0, Math.PI * 2); g.moveTo(104, 112); g.quadraticCurveTo(58, 118, 54, 170); g.lineTo(40, 500); g.lineTo(216, 500); g.lineTo(202, 170); g.quadraticCurveTo(198, 118, 152, 112); g.closePath(); };
+    const gr = g.createLinearGradient(0, 40, 0, 512); gr.addColorStop(0, "rgba(255,238,206,.62)"); gr.addColorStop(.55, "rgba(255,200,140,.3)"); gr.addColorStop(1, "rgba(255,170,90,0)");
+    g.shadowColor = "rgba(255,196,130,.85)"; g.shadowBlur = 36; g.fillStyle = gr; body(); g.fill();
+    const rim = g.createLinearGradient(0, 40, 0, 512); rim.addColorStop(0, "rgba(255,246,226,.9)"); rim.addColorStop(.7, "rgba(255,214,160,.25)"); rim.addColorStop(1, "rgba(255,190,120,0)");
+    g.shadowBlur = 12; g.strokeStyle = rim; g.lineWidth = 4; body(); g.stroke(); g.shadowBlur = 0;
+    const r = seeded(17); for (let i = 0; i < 260; i++) { const y = 20 + r() * 490, x = 128 + (r() - .5) * (60 + y * .42); g.fillStyle = `rgba(255,${210 + r() * 40},${150 + r() * 70},${(.15 + r() * .5) * (1 - y / 560)})`; g.fillRect(x, y, 1.5 + r() * 2, 1.5 + r() * 2); } });
   type Echo = { figure: THREE.Sprite; ember: THREE.Sprite; pos: THREE.Vector3; base: number };
   const echoes: Echo[] = [];
   { const r = seeded(300);
@@ -404,6 +417,16 @@ export function createRite(o: Options) {
     altarRing = new THREE.MeshBasicMaterial({ map: outline, color: 0xffd090, transparent: true, opacity: .4, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     const ring = new THREE.Mesh(new THREE.PlaneGeometry(.9, .9), altarRing); ring.rotation.x = -Math.PI / 2; ring.position.y = .5; L.group.add(ring);
     beacon.position.copy(L.pos).add(new THREE.Vector3(0, 1.1, 0)); beacon.scale.setScalar(1.6); L.focus.y = L.pos.y + .4; }
+  const crestFire = singleFlame(.75, 1.25); crestFire.place(live[7].pos.clone().add(tangent(LEN).multiplyScalar(1.4)).setY(height(live[7].pos.x, live[7].pos.z) + .05)); root.add(crestFire.mesh);
+  const crestLight = new THREE.PointLight(0xffa052, 0, 22, 2); crestLight.position.copy(live[7].pos).add(new THREE.Vector3(0, 1.6, 0)); root.add(crestLight);
+  let crestLit = 0;
+
+  // ─── Embers rising from the fires near you; fireflies over the fields ───
+  const motes = (count: number, size: number) => { const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3)); geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size, map: glowTexture, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); pts.frustumCulled = false; root.add(pts); return pts; };
+  const embers = motes(o.small ? 40 : 90, .06), emberState = Array.from({ length: (embers.geometry.attributes.position as THREE.BufferAttribute).count }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 9, life: 1 }));
+  const flies = motes(o.small ? 24 : 48, .09), flySeed = Array.from({ length: (flies.geometry.attributes.position as THREE.BufferAttribute).count }, (_, i) => [seeded(i + 5)(), seeded(i + 55)(), seeded(i + 555)()]);
+  const flyHome = new THREE.Vector3(); let flyAmount = 0;
 
   // ─── The walk's stars: hung above their places, so overhead they trace the road through the sky ───
   const flareTex = canvasTexture(128, 128, g => { const gr = g.createLinearGradient(0, 64, 128, 64); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 62, 128, 4); g.save(); g.translate(64, 64); g.rotate(Math.PI / 2); g.translate(-64, -64); g.fillRect(0, 63, 128, 2.4); g.restore(); });
@@ -492,7 +515,7 @@ export function createRite(o: Options) {
   try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch { saved = null; }
   const showMine = () => { placeMine(mineTarget(), 1); mine.material.opacity = 1; mineHalo.material.opacity = .22; mineHit.visible = true; if (!targets.includes(mineHit)) targets.push(mineHit); };
   /** After a completed walk, the road stays lit: every later visit begins with the fires you left. */
-  function remembered() { showMine(); setCairns(1); live.forEach(L => { L.done = true; L.doneAt = -1000; }); growWheat(1000); stars.forEach(x => { x.metAt = -1000; }); standLit = 1; rebuildConstellation(); }
+  function remembered() { showMine(); setCairns(1); crestLit = 1; live.forEach(L => { L.done = true; L.doneAt = -1000; }); growWheat(1000); stars.forEach(x => { x.metAt = -1000; }); standLit = 1; rebuildConstellation(); }
   if (saved) remembered();
 
   // ─── DOM: a line of narration, the year, a quiet hint, nothing else in the way ───
@@ -527,7 +550,7 @@ export function createRite(o: Options) {
   function complete(i: number, hit?: THREE.Intersection) {
     const L = live[i]; if (L.done) return; L.done = true; L.doneAt = time; holdAct = false; holdT = 0;
     L.act?.(hit); sound.chord(CHORDS[i], 10); sound.boom(.25);
-    if (i === 7) { mineAt = time; mine.material.opacity = 1; mineHalo.material.opacity = 0; placeMine(altarTop, 0); state = "finale"; finaleAt = time; }
+    if (i === 7) { api?.clearInfo(); sound.cue("finale"); mineAt = time; mine.material.opacity = 1; mineHalo.material.opacity = 0; placeMine(altarTop, 0); state = "finale"; finaleAt = time; }
     phase = "after"; phaseAt = time; setLine(say(L.st.after, lang, name)); setHint(""); lineUntil = 0;
     const first = stars.findIndex(y => y.station === i);
     if (L.st.kind !== "axial") stars.forEach((x, k) => { if (x.station === i) setTimeout(() => spark(x.pos, 1.1, () => wake(k, k === first)), 900 + (k - first) * 700); });
@@ -538,10 +561,10 @@ export function createRite(o: Options) {
     live.forEach(L => { L.done = false; L.doneAt = -1; L.reset?.(); }); index = 0; s = 0; mineAt = -1; finaleAt = -1; civWoken = 0; crossed = false; passed.clear();
     stars.forEach(x => { x.metAt = -1; x.raise = 0; x.beam.visible = false; }); rebuildConstellation(); setCairns(0);
     mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true; civWeb.geometry.setDrawRange(0, 0);
-    (civWeb.material as THREE.LineBasicMaterial).opacity = 0; civTie.material.opacity = 0; trail.material.opacity = 0; standLit = 0;
+    (civWeb.material as THREE.LineBasicMaterial).opacity = 0; civTie.material.opacity = 0; trail.material.opacity = 0; standLit = 0; crestLit = 0;
   }
   function begin() {
-    sound.wake(); startCard.hidden = true; name = (nameInput.value || "").trim().slice(0, 10); pressed = 0; paintTablet();
+    sound.wake(); sound.hush(); startCard.hidden = true; name = (nameInput.value || "").trim().slice(0, 10); pressed = 0; paintTablet();
     if (index === 0 || live.every(L => L.done)) resetWalk();
     state = "walk"; panel.hidden = false; leaveBtn.hidden = false; el("wayfinding").hidden = true; api?.clearInfo(); homeBtn.hidden = true;
     approachFrom.copy(camera.position); approach = 0; torch.visible = true; phase = "walk"; phaseAt = time; speed = 0;
@@ -566,7 +589,7 @@ export function createRite(o: Options) {
   /** The way back is quick, because it is lit: a long glide home above the fires. */
   function returnHome() {
     if (state !== "finale") return;
-    homeBtn.hidden = true; setLine(""); setHint(""); setYear(""); state = "return"; returnAt = time; sound.chord([38, 45, 50, 54, 57, 62], 14, .016);
+    homeBtn.hidden = true; setLine(""); setHint(""); setYear(""); state = "return"; returnAt = time; sound.chord([38, 45, 50, 54, 57, 62], 14, .016); sound.cue("homeward");
     const points: THREE.Vector3[] = [camera.position.clone()];
     for (let d = LEN - 18; d > 12; d -= 22) { const p = at(d); p.y += EYE + 3.4 + 3.5 * Math.sin(Math.PI * d / LEN); points.push(p); }
     points.push(at(4).add(new THREE.Vector3(0, EYE + .8, 0)), new THREE.Vector3(...overview.position));
@@ -640,10 +663,29 @@ export function createRite(o: Options) {
     look.position.copy(camera.position); look.lookAt(target); camera.quaternion.slerp(look.quaternion, Math.min(1, rate)); api.syncAngles();
   }
   if (new URLSearchParams(location.search).has("ritedebug")) (window as unknown as { __rite: unknown }).__rite = {
-    get state() { return { state, index, phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), cairnsLit: cairns.filter(c => c.lit > 0).length, cairns: N, met: stars.filter(x => x.metAt > -1).length, civWoken, year: yearText }; },
+    get state() { return { state, index, phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), cairnsLit: cairns.filter(c => c.lit > 0).length, cairns: N, met: stars.filter(x => x.metAt > -1).length, civWoken, year: yearText, audio: sound.ready }; },
     complete: (i: number) => complete(i), wake: (i: number) => wake(i, false), go: (d: number) => { s = d; }, home: () => returnHome(),
   };
-  let dirty = false;
+  let dirty = false, dawn = 0, aurora = 0, ducked = false;
+  /** The score follows the road: a cue for each stretch of history, crossfaded over about twenty metres. */
+  function scoreMix(t: number): RiteMix {
+    const music: Record<string, number> = {}, ambience: Record<string, number> = {}, span = (from: number, to: number, w = 12) => sm(from - w, from + w, s) * (1 - sm(to - w, to + w, s));
+    if (state === "intro" || (state === "walk" && s < THRESHOLD + 10)) { music.ember = 1 - (state === "walk" ? sm(THRESHOLD - 2, THRESHOLD + 10, s) : 0); ambience.forest = .5; }
+    if (state === "walk") {
+      const ashDone = live[6].done;
+      music.forest = span(THRESHOLD + 4, 150); music.fields = span(150, 300); music.voices = span(300, 432);
+      music.ash = ashDone ? 0 : sm(420, 440, s);
+      music.candle = ashDone ? 1 - sm(494, 518, s) : 0;
+      music.ascent = ashDone ? sm(494, 518, s) * (.55 + .45 * sm(zones.ascent[0], LEN, s)) : 0;
+      ambience.forest = 1 - sm(140, 165, s); ambience.open = sm(140, 165, s) * (1 - sm(425, 440, s)); ambience.ash = sm(425, 440, s) * (1 - sm(500, 515, s)); ambience.crest = sm(500, 515, s);
+    }
+    if (state === "finale") { const ft = t - finaleAt; music.finale = 1; music.hold = sm(56, 63, ft); ambience.crest = 1 - sm(4, 20, ft) * .5; }
+    if (state === "return") { const rt = t - returnAt; music.homeward = 1; music.finale = 1 - sm(0, 4, rt); music.hold = 0; ambience.open = .5 * (1 - sm(28, 38, rt)); }
+    if (state === "home" || (state === "idle" && homeAt > 0 && t - homeAt < 24)) music.homeward = 1;
+    return { music, ambience };
+  }
+  const mood = { sat: 1, vignette: 0, grain: 0, tint: new THREE.Color(1, 1, 1) };
+  const COLD = new THREE.Color(.92, .98, 1.09), WARM = new THREE.Color(1.06, 1, .93), ASHEN = new THREE.Color(1.09, .94, .85), DAWN = new THREE.Color(1.07, 1, .94), tint = new THREE.Color();
   return {
     hooks,
     attach(a: ExplorationApi) { api = a; },
@@ -696,7 +738,7 @@ export function createRite(o: Options) {
       }
       if (state === "walk" && phase === "after" && t - phaseAt > 6) { phase = "walk"; phaseAt = t; setLine(""); }
       if (state === "walk") setHint(phase === "act" ? hintText : approach >= 1 && s < stop - .01 && (phase === "walk" || phase === "narrate") ? `${riteUi.walkHint[lang]} · ${riteUi.walkKeys[lang]}` : "");
-      if (state === "walk" || state === "finale") setYear(yearLabel(yearsAgoAt(s), lang));
+      if (state === "walk" || state === "finale") setYear(yearLabel(state === "finale" ? 0 : yearsAgoAt(s), lang));
       // ── body: kneel for the seed, raise the torch to the sky, offer it to the fire and the candle
       const acting = phase === "act" && (holdAct || keyAct);
       kneel += ((state === "walk" && st.kind === "seed" && (acting || (phase === "after" && t - phaseAt < 2.5)) ? 1 : 0) - kneel) * Math.min(1, dt * 3);
@@ -787,7 +829,46 @@ export function createRite(o: Options) {
       if (state === "home") { const ht = t - homeAt; if (ht > 5.5) setLine(riteUi.welcome2[lang]); if (ht > 12) finishHome(); }
       if ((state === "finale" && t - finaleAt > 7) || state === "return") { skyGroup.updateMatrixWorld(); mineWorld.copy(mine.position).applyMatrix4(skyGroup.matrixWorld);
         const c = constellation.geometry.attributes.position as THREE.BufferAttribute | undefined; if (c && mineAt >= 0 && t - mineAt > 7) { c.setXYZ(c.count - 1, mineWorld.x, mineWorld.y, mineWorld.z); c.needsUpdate = true; } }
-      sound.update(lit, g, s > zones.forest[1] && state === "walk" ? 1 : 0);
+      // ── mood: the grade, the dawn behind home, the aurora, the air
+      const inRite = journeying, ft = t - finaleAt;
+      const forest = inRite ? 1 - sm(zones.forest[1] - 20, zones.forest[1] + 25, s) : 0, field = inRite ? sm(150, 178, s) * (1 - sm(240, 300, s)) : 0;
+      const dawnTarget = state === "finale" ? sm(16, 32, ft) * .95 : state === "return" || state === "home" ? .95 : 0;
+      dawn += (dawnTarget - dawn) * Math.min(1, dt * (dawnTarget > dawn ? .5 : .08)); o.skyDawn.value = dawn;
+      const auroraTarget = state === "finale" ? sm(7, 20, ft) : state === "return" || state === "home" ? 1 : 0;
+      aurora += (auroraTarget - aurora) * Math.min(1, dt * (auroraTarget > aurora ? .35 : .06)); o.skyAurora.value = aurora;
+      tint.setRGB(1, 1, 1).lerp(COLD, forest * .8).lerp(WARM, field * .7).lerp(ASHEN, g).lerp(DAWN, dawn * .8);
+      const k = Math.min(1, dt * 1.2);
+      mood.sat += ((inRite ? 1 - forest * .14 - g * .55 + field * .06 + dawn * .06 : 1) - mood.sat) * k;
+      mood.vignette += ((inRite ? .3 + forest * .14 + g * .3 : 0) - mood.vignette) * k;
+      mood.grain += ((inRite ? .02 + g * .05 : 0) - mood.grain) * k;
+      mood.tint.lerp(inRite ? tint : tint.setRGB(1, 1, 1), k);
+      o.grade.uSat.value = mood.sat; o.grade.uVignette.value = mood.vignette; o.grade.uGrain.value = mood.grain; o.grade.uTint.value.copy(mood.tint); o.grade.uTime.value = t;
+      const smoke = walkingOn ? sm(zones.ash[0] - 60, zones.ash[0] + 6, s) * (1 - sm(zones.ash[1], zones.ash[1] + 25, s)) * (ashL.done ? .4 : 1) : 0;
+      air.update(t, { mist: inRite ? 1 : .45, smoke, war: walkingOn && !ashL.done ? sm(zones.ash[0] - 60, zones.ash[0] + 6, s) : 0 });
+      // ── the crest's fire, lit once your star has risen
+      crestLit += ((live[7].done ? 1 : 0) - crestLit) * Math.min(1, dt * .8); crestFire.set(crestLit); crestFire.material.uniforms.uTime0.value = sceneTime; crestFire.material.uniforms.uGlobal.value = fl; crestLight.intensity = crestLit * 7 * fl;
+      // ── embers from the nearest fires and from your torch
+      { const pos = embers.geometry.attributes.position as THREE.BufferAttribute, col = embers.geometry.attributes.color as THREE.BufferAttribute, sources = nearest.filter(n => n.d > 12).slice(0, 6);
+        emberState.forEach((e, i) => {
+          e.age += dt;
+          if (e.age > e.life) {
+            const source = sources.length ? sources[Math.floor(Math.random() * sources.length)].c.top.clone().add(new THREE.Vector3(0, .25, 0)) : null;
+            if (source && Math.random() < dt * 30) { e.p.copy(source).add(new THREE.Vector3((Math.random() - .5) * .12, 0, (Math.random() - .5) * .12)); e.v.set((Math.random() - .5) * .25, .45 + Math.random() * .7, (Math.random() - .5) * .25); e.age = 0; e.life = 1 + Math.random() * 1.8; }
+          }
+          const u = e.age / e.life, a = e.age < e.life ? Math.sin(Math.PI * Math.min(1, u)) * (.6 + .4 * Math.sin(t * 23 + i)) * (1 - g * .5) : 0;
+          e.p.addScaledVector(e.v, dt); e.p.x += Math.sin(t * 2 + i) * dt * .12; e.v.y *= 1 - dt * .4;
+          pos.setXYZ(i, e.p.x, e.p.y, e.p.z); col.setXYZ(i, a, a * .46, a * .14);
+        });
+        pos.needsUpdate = col.needsUpdate = true; }
+      // ── fireflies over the fields and the open country
+      { flyAmount += (((state === "walk" && s > 150 && s < 330) || state === "home" ? 1 : 0) - flyAmount) * Math.min(1, dt * .5);
+        if (flyHome.distanceTo(camera.position) > 18) flyHome.copy(camera.position).add(camera.getWorldDirection(tmp).setY(0).normalize().multiplyScalar(9));
+        const pos = flies.geometry.attributes.position as THREE.BufferAttribute, col = flies.geometry.attributes.color as THREE.BufferAttribute;
+        flySeed.forEach(([a, b, c], i) => { const x = flyHome.x + (a - .5) * 30 + Math.sin(t * .3 + c * 9) * 1.4, z = flyHome.z + (b - .5) * 30 + Math.cos(t * .27 + a * 7) * 1.4, y = height(x, z) + .4 + c * 1.6 + Math.sin(t * .8 + b * 5) * .25;
+          const blink = Math.pow(Math.max(0, Math.sin(t * (1 + c) + a * 40)), 8) * flyAmount; pos.setXYZ(i, x, y, z); col.setXYZ(i, blink * .55, blink, blink * .35); });
+        pos.needsUpdate = col.needsUpdate = true; }
+      sound.update(lit, g, s > zones.forest[1] && state === "walk" ? 1 : 0, scoreMix(t));
+      const ducking = state !== "idle" || (homeAt > 0 && t - homeAt < 24); if (ducking !== ducked) { ducked = ducking; api?.duckMusic(ducking); }
       land.update(camera);
       syncReflection();
       return state !== "idle" || sparks.length > 0 || stars.some(x => x.metAt > -1 && time - x.metAt < 8);
