@@ -1,9 +1,10 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { walkTrees, ashTrunks, besideRoad, riteLength, zones, distToWalk, corridorLift, stationMeters } from "./rite-path.ts";
 import type { createWind } from "./wind";
 
 type Source = { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] };
-type Placement = { x: number; z: number; s: number; scale: [number, number, number]; ry: number; color?: THREE.Color; sink?: number };
+export type Placement = { x: number; z: number; s: number; scale: [number, number, number]; ry: number; color?: THREE.Color; sink?: number; y?: number; rx?: number; rz?: number };
 const CHUNK = 48;
 const seeded = (seed: number) => { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); };
 
@@ -12,7 +13,7 @@ const seeded = (seed: number) => { let s = seed; return () => ((s = (s * 16807) 
 export function addRoadside(o: {
   scene: THREE.Scene; height: (x: number, z: number) => number; wind: ReturnType<typeof createWind>; small: boolean;
   forest?: THREE.Group; rock?: Source; grass?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial };
-  ferns?: Source[];
+  ferns?: Source[]; grasses?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }[];
 }) {
   const { scene, height, wind, small } = o;
   const group = new THREE.Group(); group.name = "The road's country"; scene.add(group);
@@ -28,7 +29,7 @@ export function addRoadside(o: {
       for (const list of byChunk.values()) {
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, list.length);
         list.forEach((p, i) => {
-          m.position.set(p.x, ground(p.x, p.z) - (p.sink ?? 0), p.z); m.rotation.set(0, p.ry, 0); m.scale.set(...p.scale); m.updateMatrix(); mesh.setMatrixAt(i, m.matrix);
+          m.position.set(p.x, p.y ?? ground(p.x, p.z) - (p.sink ?? 0), p.z); m.rotation.set(p.rx ?? 0, p.ry, p.rz ?? 0); m.scale.set(...p.scale); m.updateMatrix(); mesh.setMatrixAt(i, m.matrix);
           if (p.color) mesh.setColorAt(i, p.color);
         });
         mesh.castShadow = opts.shadow; mesh.receiveShadow = true;
@@ -66,7 +67,7 @@ export function addRoadside(o: {
     if (young) {
       const random = seeded(808), placements: Placement[] = [];
       for (let s = zones.forest[0] + 8; s < 205; s += o.small ? 2.6 : 1.3) {
-        if (random() > (s < 40 ? .5 : .03)) continue;
+        if (s > 40 || random() > .5) continue;
         const side = random() > .5 ? 1 : -1, off = 3.3 + Math.pow(random(), 1.3) * 16, [x, z] = besideRoad(s, side, off);
         if (distToWalk(x, z) < 3 || walkTrees.some(t => Math.hypot(t[0] - x, t[1] - z) < 1.6)) continue;
         if (Math.abs(s - stationMeters[1]) < 6 && side > 0 && off < 7) continue; // the painted rock stays clear
@@ -78,7 +79,7 @@ export function addRoadside(o: {
   if (o.ferns?.length) {
     const random = seeded(919), lists = o.ferns.map(() => [] as Placement[]);
     for (let s = zones.forest[0] + 4; s < 190; s += o.small ? .5 : .22) {
-      if (random() > (s < 40 ? 1 : .02)) continue;
+      if (s > 40) continue;
       const side = random() > .5 ? 1 : -1, off = 1.7 + Math.pow(random(), 1.5) * 15, [x, z] = besideRoad(s, side, off);
       if (distToWalk(x, z) < 1.5) continue;
       const k = .55 + random() * .75; lists[Math.floor(random() * lists.length)].push({ x, z, s, scale: [k, k * (.85 + random() * .3), k], ry: random() * 6.28, sink: .01, color: new THREE.Color(.62 + random() * .2, .68 + random() * .15, .55) });
@@ -86,8 +87,25 @@ export function addRoadside(o: {
     o.ferns.forEach((fern, i) => instance([fern], lists[i], o.small ? 45 : 65, { shadow: false, wind: "plant" }));
   }
 
-  // ─── Grass: thick in the open country, thin under the trees, dry and dark among the ashes ───
-  if (o.grass) {
+  // ─── Grass: the moor is thick with it, in three heights, all moving in the same wind; dry and dark among the ashes ───
+  if (o.grasses?.length) {
+    const random = seeded(311), kinds = o.grasses, lists = kinds.map(() => [] as Placement[]), [fx, fz] = besideRoad(stationMeters[2], -1, 1.9);
+    const weights = kinds.map(k => k.geometry.attributes.position.count > 900 ? .34 : k.geometry.attributes.position.count > 360 ? .46 : .2);
+    const pick = () => { let r = random() * weights.reduce((a, b) => a + b, 0); for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) return i; } return 0; };
+    for (let s = 26; s < riteLength + 40; s += small ? .5 : .25) for (const side of [-1, 1]) for (let n = 0; n < (small ? 4 : 7); n++) {
+      const ash = s > zones.ash[0] - 4 && s < zones.ash[1] + 2, zone = s < 40 ? .45 : ash ? .4 : 1;
+      if (random() > zone) continue;
+      const off = 1.05 + Math.pow(random(), 1.6) * 20, [bx, bz] = besideRoad(Math.min(s + random() * .35, riteLength), side, off), x = bx + (random() - .5) * .6, z = bz + (random() - .5) * .6;
+      if (s > riteLength && off < 6) continue;
+      if (distToWalk(x, z) < .95 || Math.hypot(x - fx, z - fz) < 27) continue;
+      const patch = .55 + .45 * Math.sin(x * .21 + Math.sin(z * .17) * 2) * Math.sin(z * .23 + x * .07);
+      if (random() > .35 + patch * .65) continue;
+      const k = pick(), size = .75 + random() * .75;
+      const color = ash ? new THREE.Color(.32 + random() * .1, .27, .2) : new THREE.Color(.74 + random() * .26, .78 + random() * .2, .58 + random() * .2);
+      lists[k].push({ x, z, s, scale: [size, size * (.8 + random() * .45) * (ash ? .7 : 1), size], ry: random() * 6.28, color, sink: .012 });
+    }
+    kinds.forEach((kind, i) => instance([kind], lists[i], small ? 60 : 95, { shadow: false, wind: "grass" }));
+  } else if (o.grass) {
     const random = seeded(311), placements: Placement[] = [], [fx, fz] = besideRoad(stationMeters[2], -1, 1.9);
     for (let s = 30; s < riteLength + 30; s += small ? 1.1 : .5) for (const side of [-1, 1]) {
       const zone = s < 40 ? .4 : s < zones.ash[0] ? 1 : s < zones.ash[1] ? .45 : .8;
@@ -121,13 +139,16 @@ export function addRoadside(o: {
     instance([o.rock], placements, 260, { shadow: true });
   }
 
-  // ─── The burnt country: standing dead trunks and broken snags ───
+  // ─── The burnt country: dead snags with broken branches, a few fallen ───
   {
-    const trunk = new THREE.CylinderGeometry(.07, .17, 1, 7, 3).translate(0, .5, 0), tp = trunk.attributes.position;
-    for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); tp.setX(i, tp.getX(i) * (1 + Math.sin(y * 9 + i) * .08)); }
+    const r = seeded(51), parts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(.045, .17, 1, 8, 4).translate(0, .5, 0)];
+    for (let k = 0; k < 4; k++) { const h = .35 + r() * .55, len = .12 + r() * .2, a = r() * 6.28;
+      parts.push(new THREE.CylinderGeometry(.012, .03, len, 5).translate(0, len / 2, 0).rotateZ(.9 + r() * .5).rotateY(a).translate(0, h, 0)); }
+    const trunk = mergeGeometries(parts.map(g => g.toNonIndexed()))!, tp = trunk.attributes.position;
+    for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); tp.setX(i, tp.getX(i) * (1 + Math.sin(y * 9 + i * .3) * .07)); }
     trunk.computeVertexNormals();
     const char = new THREE.MeshStandardMaterial({ color: 0x1d1a18, roughness: 1 });
-    const placements: Placement[] = ashTrunks.map(([x, z, h, lean, s], i) => ({ x, z, s, scale: [1 + h * .05, h, 1 + h * .05] as [number, number, number], ry: i * 1.7, sink: .1 }));
+    const placements: Placement[] = ashTrunks.map(([x, z, h, lean, s], i) => ({ x, z, s, scale: [1 + h * .06, h, 1 + h * .06] as [number, number, number], ry: i * 1.7, rz: lean, sink: .1 }));
     instance([{ geometry: trunk, material: char }], placements, 600, { shadow: true });
     // a few fallen and leaning ones, so it reads as a forest that burned
     const fallen: Placement[] = ashTrunks.filter((_, i) => i % 3 === 0).map(([x, z, h, , s], i) => ({ x: x + 1.2, z: z - .8, s, scale: [h * .8, 1.2, 1.2] as [number, number, number], ry: i * 2.3, sink: .05 }));
@@ -138,6 +159,8 @@ export function addRoadside(o: {
   const tmp = new THREE.Vector3();
   return {
     group,
+    /** add more instances drawn in stretches (the cairns use this) */
+    instance,
     /** draw only the stretches near enough to see */
     update(camera: THREE.Camera) {
       for (const c of chunks) { const b = c.mesh.boundingSphere; if (!b) continue; c.mesh.visible = tmp.copy(b.center).distanceTo(camera.position) - b.radius < c.range; }

@@ -250,8 +250,7 @@ test("the road's forest leaves the road, the yard and the existing routes open",
     assert.ok(Math.hypot(x+1,z+5)>6,"the fire yard stays open");
   }
   for(const [x,z] of walkTrees) for(const [fx,fz] of forestTrees) assert.ok(Math.hypot(x-fx,z-fz)>2.8,"no fir grows inside another");
-  assert.ok(walkTrees.filter(t=>t[4]>40&&t[3]<3).length<60,"beyond the trees around home the road crosses open country");
-  assert.ok(walkTrees.some(t=>t[4]>40),"a few lone firs and groves stand along the way");
+  assert.ok(walkTrees.every(t=>t[4]<40),"beyond the trees around home the road crosses open moor");
   assert.ok(ashTrunks.length>20,"the burnt country has its dead trees");
   const views=[overview,...Object.values(destinations)];
   for(const start of views) for(const end of views) {

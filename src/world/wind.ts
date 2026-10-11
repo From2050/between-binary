@@ -22,9 +22,14 @@ export function createWind() {
         anchor=instanceMatrix*anchor;
       #endif
       vec3 wp=(modelMatrix*anchor).xyz;
+      vec4 baseAnchor=vec4(0.,0.,0.,1.);
+      #ifdef USE_INSTANCING
+        baseAnchor=instanceMatrix*baseAnchor;
+      #endif
+      float above=wp.y-(modelMatrix*baseAnchor).y; // height above the plant's own root
       vec2 flow=worldWind(wp);
       float rootHeight=(wp.x>4. && wp.x<8. && wp.z< -19. && wp.z> -27.) ? .46 : .045;
-      float weight=${kind==='grass'?'pow(clamp(position.y/.32,0.,1.4),1.6)*.18':kind==='canopy'?'pow(max(wp.y-.3,0.)/12.,1.65)*.52':'pow(max(wp.y-rootHeight,0.),1.2)*.16'};
+      float weight=${kind==='grass'?'pow(clamp(position.y/.32,0.,1.4),1.6)*.18':kind==='canopy'?'pow(max(above-.3,0.)/12.,1.65)*.52':'pow(max(above-rootHeight,0.),1.2)*.16'};
       float flutter=sin(uWindTime*2.7+wp.x*3.1+wp.z*2.3)*${kind==='canopy'?'.025':'.04'};
       vec3 offset=vec3(flow.x,0.,flow.y)*weight*(1.0+flutter);
       offset.y=-length(offset)*.14;

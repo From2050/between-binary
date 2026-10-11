@@ -138,13 +138,12 @@ const distHome = (x: number, z: number) => Math.min(...homePaths.map(([a, b, c, 
 }));
 
 /** The road's trees: [x, z, scale, variant, s]. Variants 0–2 are the near firs, 3 the distant silhouette.
- * The road leaves the trees around home and crosses open country under the whole sky: a few lone firs and
- * small groves, none in the burnt country, almost none on the bare slope to the crest. */
+ * Only where the road leaves the trees around home; beyond, it crosses open moor under the whole sky. */
 export const walkTrees: [number, number, number, number, number][] = (() => {
   const random = seeded(2026), trees: [number, number, number, number, number][] = [];
   const clear = [2, 4, 5].map((i, k) => [...station(i).slice(0, 2), [30, 25, 14][k]]);
   const grove = (s: number) => Math.pow(Math.max(0, Math.sin(s / 31 + .6) * Math.sin(s / 11.5)), 2);
-  const density = (s: number) => s < 40 ? .7 - sm(20, 40, s) * .5 : s < zones.ash[0] ? .015 + .28 * grove(s) : s < zones.ascent[0] ? 0 : .02;
+  const density = (s: number) => s < 34 ? .6 - sm(18, 34, s) * .6 : 0; void grove;
   const cellOf = (x: number, z: number) => Math.floor(x / 4) + "," + Math.floor(z / 4), taken = new Map<string, P[]>();
   const add = (x: number, z: number) => { const key = cellOf(x, z); taken.set(key, [...(taken.get(key) ?? []), [x, z]]); };
   const crowded = (x: number, z: number) => { const gx = Math.floor(x / 4), gz = Math.floor(z / 4);

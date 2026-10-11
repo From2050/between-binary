@@ -3,7 +3,7 @@ import { fireFragment } from "./shaders";
 import { pointAt, riteLength, stationMeters, THRESHOLD, zones, AXIS } from "./rite-path.ts";
 import { riteStations, riteUi, resolveFigure, say, chronologicalSky, yearsAgoAt, yearLabel, torchbearer, type Lang, type RiteStation } from "./rite.ts";
 import { createRiteSound, type RiteMix } from "./rite-sound.ts";
-import { addRoadside } from "./rite-land.ts";
+import { addRoadside, type Placement } from "./rite-land.ts";
 import { addAtmosphere } from "./rite-atmos.ts";
 import { overview } from "./journey.ts";
 import type { createWind } from "./wind";
@@ -45,6 +45,9 @@ type Options = {
   /** the clearing's firs and ferns, reused along the road */
   forest?: THREE.Group;
   ferns?: { geometry: THREE.BufferGeometry; material: THREE.Material }[];
+  grasses?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }[];
+  /** the moon, so the walk's constellation keeps clear of it */
+  moon?: THREE.Object3D;
   /** the final grade, which the walk steers through its moods */
   grade: { uVignette: { value: number }; uGrain: { value: number }; uSat: { value: number }; uTint: { value: THREE.Color }; uTime: { value: number } };
   skyDawn: { value: number };
@@ -103,12 +106,12 @@ function decal(map: THREE.Texture, point: THREE.Vector3, normal: THREE.Vector3, 
 /** The world's fire shader, instanced: each flame has its own position, size and moment in the flicker. */
 const instancedFire = {
   vertex: `
-    attribute vec3 iPos; attribute float iLit; attribute float iSeed;
+    attribute vec3 iPos; attribute float iLit; attribute float iSeed; attribute float iScale;
     varying vec2 vUv; varying float vInt; varying float vSeed;
     void main() {
       vUv = uv; float g = iLit * iLit * (3. - 2. * iLit); vInt = g; vSeed = iSeed;
       vec3 right = normalize(vec3(viewMatrix[0][0], 0., viewMatrix[2][0]) + vec3(1e-5, 0., 0.));
-      vec3 world = iPos + right * position.x * g + vec3(0., position.y * g, 0.);
+      vec3 world = iPos + right * position.x * g * iScale + vec3(0., position.y * g * iScale, 0.);
       gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.);
     }`,
   fragment: fireFragment
@@ -121,7 +124,7 @@ function singleFlame(width: number, height: number) {
   const plane = new THREE.PlaneGeometry(width, height).translate(0, height / 2, 0), geo = new THREE.InstancedBufferGeometry();
   geo.index = plane.index; geo.setAttribute("position", plane.attributes.position); geo.setAttribute("uv", plane.attributes.uv);
   const iPos = new THREE.InstancedBufferAttribute(new Float32Array(3), 3), iLit = new THREE.InstancedBufferAttribute(new Float32Array(1), 1);
-  geo.setAttribute("iPos", iPos); geo.setAttribute("iLit", iLit); geo.setAttribute("iSeed", new THREE.InstancedBufferAttribute(new Float32Array([Math.random() * 9]), 1)); geo.instanceCount = 1;
+  geo.setAttribute("iPos", iPos); geo.setAttribute("iLit", iLit); geo.setAttribute("iSeed", new THREE.InstancedBufferAttribute(new Float32Array([Math.random() * 9]), 1)); geo.setAttribute("iScale", new THREE.InstancedBufferAttribute(new Float32Array([1]), 1)); geo.instanceCount = 1;
   const mesh = new THREE.Mesh(geo, flameMaterial()); mesh.frustumCulled = false;
   return { mesh, place(p: THREE.Vector3) { iPos.setXYZ(0, p.x, p.y, p.z); iPos.needsUpdate = true; }, set(v: number) { if (iLit.getX(0) !== v) { iLit.setX(0, v); iLit.needsUpdate = true; } }, material: mesh.material as THREE.ShaderMaterial };
 }
@@ -158,7 +161,7 @@ export function createRite(o: Options) {
   const beside = (s: number, side: number, off: number) => { const t = tangent(s), p = at(s); p.x += -t.z * side * off; p.z += t.x * side * off; p.y = height(p.x, p.z); return p; };
 
   const root = new THREE.Group(); root.name = "The walk"; scene.add(root);
-  const land = addRoadside({ scene, height, wind: o.wind, small: o.small, forest: o.forest, rock: o.rock, grass: o.grass, ferns: o.ferns });
+  const land = addRoadside({ scene, height, wind: o.wind, small: o.small, forest: o.forest, rock: o.rock, grass: o.grass, ferns: o.ferns, grasses: o.grasses });
   const air = addAtmosphere({ scene, height, small: o.small });
   const targets: THREE.Object3D[] = [];
   const stone = new THREE.MeshStandardMaterial({ color: 0x6d675d, roughness: 1 });
@@ -206,22 +209,26 @@ export function createRite(o: Options) {
   const deadFrom = zones.ash[0] + 4, deadTo = stationMeters[6];
   const stoneGeo = new THREE.IcosahedronGeometry(1, 1);
   { const sp = stoneGeo.attributes.position; for (let i = 0; i < sp.count; i++) { const x = sp.getX(i), y = sp.getY(i), z = sp.getZ(i), k = 1 + .12 * Math.sin(x * 6 + z * 4) * Math.cos(y * 7); sp.setXYZ(i, x * k, y * k * .55, z * k); } stoneGeo.computeVertexNormals(); }
-  const stoneMatrices: THREE.Matrix4[] = [];
-  { const r = seeded(91), m = new THREE.Object3D();
+  const stonePlacements: Placement[] = [], flameScale: number[] = [];
+  const rockHeight = (() => { if (!o.rock) return 1.1; o.rock.geometry.computeBoundingBox(); return Math.max(.2, o.rock.geometry.boundingBox!.max.y); })();
+  { const r = seeded(91);
     for (let s = 3.4, k = 0; s < LEN - 2.5; s += 3.4, k++) {
       if (stationMeters.some((st, i) => i > 0 && Math.abs(st - s) < 2.4) || Math.abs(s - THRESHOLD) < 1.4) continue;
-      const base = beside(s, k % 2 ? 1 : -1, 1.3); let y = 0;
-      for (let j = 0; j < 3; j++) { const size = .19 - j * .045 + r() * .03; m.position.set(base.x + (r() - .5) * .04, base.y + y + size * .5, base.z + (r() - .5) * .04); m.rotation.set(0, r() * 6, 0); m.scale.setScalar(size); m.updateMatrix(); stoneMatrices.push(m.matrix.clone()); y += size * .95; }
-      cairns.push({ s, top: base.clone().setY(base.y + y - .05), lit: 0, dead: s > deadFrom && s < deadTo });
+      const base = beside(s, k % 2 ? 1 : -1, 1.3 + (r() - .5) * .3); let y = base.y - .05;
+      const layers = r() > .7 ? 2 : 3;
+      for (let j = 0; j < layers; j++) { const w = [.52, .36, .24][j] * (.85 + r() * .3), h = w * (.5 + r() * .25);
+        stonePlacements.push({ x: base.x + (r() - .5) * .06 * j, z: base.z + (r() - .5) * .06 * j, s, y, scale: [w, h / rockHeight, w * (.8 + r() * .3)], ry: r() * 6.28, rx: (r() - .5) * .16, rz: (r() - .5) * .16 }); y += h * .78; }
+      cairns.push({ s, top: base.clone().setY(y - .02), lit: 0, dead: s > deadFrom && s < deadTo }); flameScale.push(.85 + r() * .45);
     } }
   const N = cairns.length;
-  const stones = new THREE.InstancedMesh(stoneGeo, stone, stoneMatrices.length); stoneMatrices.forEach((mx, i) => stones.setMatrixAt(i, mx)); stones.castShadow = stones.receiveShadow = true; stones.computeBoundingSphere(); root.add(stones);
+  if (o.rock) land.instance([o.rock], stonePlacements, 160, { shadow: true });
+  else { const stones = new THREE.InstancedMesh(stoneGeo, stone, stonePlacements.length), m = new THREE.Object3D(); stonePlacements.forEach((p, i) => { m.position.set(p.x, (p.y ?? 0) + p.scale[1] * rockHeight * .5, p.z); m.rotation.set(p.rx ?? 0, p.ry, p.rz ?? 0); m.scale.set(p.scale[0] * .5, p.scale[1] * rockHeight * .5 / .55, p.scale[2] * .5); m.updateMatrix(); stones.setMatrixAt(i, m.matrix); }); stones.castShadow = stones.receiveShadow = true; stones.computeBoundingSphere(); root.add(stones); }
   const flameGeo = new THREE.InstancedBufferGeometry();
-  { const plane = new THREE.PlaneGeometry(.3, .44).translate(0, .22, 0); flameGeo.index = plane.index; flameGeo.setAttribute("position", plane.attributes.position); flameGeo.setAttribute("uv", plane.attributes.uv); }
+  { const plane = new THREE.PlaneGeometry(.34, .52).translate(0, .26, 0); flameGeo.index = plane.index; flameGeo.setAttribute("position", plane.attributes.position); flameGeo.setAttribute("uv", plane.attributes.uv); }
   const iPos = new Float32Array(N * 3), iLit = new Float32Array(N), iSeed = new Float32Array(N);
   cairns.forEach((c, i) => { iPos.set([c.top.x, c.top.y, c.top.z], i * 3); iSeed[i] = (i * 7.31) % 13; });
   const litAttr = new THREE.InstancedBufferAttribute(iLit, 1);
-  flameGeo.setAttribute("iPos", new THREE.InstancedBufferAttribute(iPos, 3)); flameGeo.setAttribute("iLit", litAttr); flameGeo.setAttribute("iSeed", new THREE.InstancedBufferAttribute(iSeed, 1)); flameGeo.instanceCount = N;
+  flameGeo.setAttribute("iPos", new THREE.InstancedBufferAttribute(iPos, 3)); flameGeo.setAttribute("iLit", litAttr); flameGeo.setAttribute("iSeed", new THREE.InstancedBufferAttribute(iSeed, 1)); flameGeo.setAttribute("iScale", new THREE.InstancedBufferAttribute(new Float32Array(flameScale), 1)); flameGeo.instanceCount = N;
   const cairnFlame = flameMaterial(), flames = new THREE.Mesh(flameGeo, cairnFlame); flames.frustumCulled = false; root.add(flames);
   // Seen from far away, each lit cairn is a point of fire that never shrinks below a few pixels; home is the brightest.
   const glowPos = new Float32Array((N + 1) * 3), glowLit = new Float32Array(N + 1), glowSize = new Float32Array(N + 1);
@@ -236,30 +243,60 @@ export function createRite(o: Options) {
         gl_PointSize = uPx * max(2.6 * size, size * 110. / d); }`,
     fragmentShader: `uniform sampler2D uMap; varying float vA; void main(){ float a = texture2D(uMap, gl_PointCoord).a * vA; if (a < .004) discard; gl_FragColor = vec4(1., .58, .25, a); }` });
   const glowPoints = new THREE.Points(glowGeo, glowMat); glowPoints.frustumCulled = false; root.add(glowPoints);
-  const groundGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xff9a4a, transparent: true, opacity: .12, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), N);
+  const pool = canvasTexture(128, 128, g => { const r = seeded(4); for (let i = 0; i < 26; i++) { const x = 64 + (r() - .5) * 46, y = 64 + (r() - .5) * 40, rad = 18 + r() * 34, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, "rgba(255,255,255,.14)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
+    const fade = g.createRadialGradient(64, 64, 20, 64, 64, 64); fade.addColorStop(0, "rgba(0,0,0,0)"); fade.addColorStop(1, "rgba(0,0,0,1)"); g.globalCompositeOperation = "destination-out"; g.fillStyle = fade; g.fillRect(0, 0, 128, 128); });
+  const groundGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(5, 5).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: pool, color: 0xff9248, transparent: true, opacity: .38, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), N);
   const gm = new THREE.Object3D();
-  const placeGlow = (i: number) => { const c = cairns[i], k = sm(0, 1, c.lit); gm.position.set(c.top.x, height(c.top.x, c.top.z) + .03, c.top.z); gm.scale.setScalar(Math.max(.001, .4 + .6 * k) * (c.lit > 0 ? 1 : .001)); gm.updateMatrix(); groundGlow.setMatrixAt(i, gm.matrix); };
+  const placeGlow = (i: number) => { const c = cairns[i], k = sm(0, 1, c.lit); gm.position.set(c.top.x, height(c.top.x, c.top.z) + .03, c.top.z); gm.rotation.y = i * 2.1; gm.scale.setScalar(Math.max(.001, .4 + .6 * k) * (c.lit > 0 ? 1 : .001)); gm.updateMatrix(); groundGlow.setMatrixAt(i, gm.matrix); };
   for (let i = 0; i < N; i++) placeGlow(i);
   groundGlow.frustumCulled = false; root.add(groundGlow);
-  const pool = Array.from({ length: o.small ? 2 : 3 }, () => { const l = new THREE.PointLight(0xffa052, 0, 8, 2); root.add(l); return l; });
+  const lights = Array.from({ length: o.small ? 2 : 4 }, () => { const l = new THREE.PointLight(0xffa052, 0, 9, 2); root.add(l); return l; });
   function setCairns(value: number) { cairns.forEach((c, i) => { c.lit = value; iLit[i] = glowLit[i] = value; placeGlow(i); }); litAttr.needsUpdate = glowLitAttr.needsUpdate = true; groundGlow.instanceMatrix.needsUpdate = true; }
 
-  // ─── Those who walked before: faint figures beside the road, each carrying a small light ───
-  const figureTex = canvasTexture(256, 512, g => {
-    const body = () => { g.beginPath(); g.arc(128, 78, 30, 0, Math.PI * 2); g.moveTo(104, 112); g.quadraticCurveTo(58, 118, 54, 170); g.lineTo(40, 500); g.lineTo(216, 500); g.lineTo(202, 170); g.quadraticCurveTo(198, 118, 152, 112); g.closePath(); };
-    const gr = g.createLinearGradient(0, 40, 0, 512); gr.addColorStop(0, "rgba(255,238,206,.62)"); gr.addColorStop(.55, "rgba(255,200,140,.3)"); gr.addColorStop(1, "rgba(255,170,90,0)");
-    g.shadowColor = "rgba(255,196,130,.85)"; g.shadowBlur = 36; g.fillStyle = gr; body(); g.fill();
-    const rim = g.createLinearGradient(0, 40, 0, 512); rim.addColorStop(0, "rgba(255,246,226,.9)"); rim.addColorStop(.7, "rgba(255,214,160,.25)"); rim.addColorStop(1, "rgba(255,190,120,0)");
-    g.shadowBlur = 12; g.strokeStyle = rim; g.lineWidth = 4; body(); g.stroke(); g.shadowBlur = 0;
-    const r = seeded(17); for (let i = 0; i < 260; i++) { const y = 20 + r() * 490, x = 128 + (r() - .5) * (60 + y * .42); g.fillStyle = `rgba(255,${210 + r() * 40},${150 + r() * 70},${(.15 + r() * .5) * (1 - y / 560)})`; g.fillRect(x, y, 1.5 + r() * 2, 1.5 + r() * 2); } });
-  type Echo = { figure: THREE.Sprite; ember: THREE.Sprite; pos: THREE.Vector3; base: number };
+  // ─── Presences: the people met on the way are not cut-outs but drifting light that keeps a human shape ───
+  // When a star is lit, its light falls from the star like slow snow and gathers into the figure beside the road.
+  const presenceMaterial = (count: number) => new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { uForm: { value: 0 }, uTime: { value: 0 }, uAlpha: { value: 0 }, uPx: { value: pixelRatio }, uFrom: { value: new THREE.Vector3(0, 1, 0) }, uWarm: { value: 1 } },
+    vertexShader: `attribute vec3 target; attribute vec3 jitter; attribute float seed;
+      uniform float uForm, uTime, uAlpha, uPx; uniform vec3 uFrom; varying float vA;
+      void main(){
+        float k = clamp((uForm - seed * .55) / .45, 0., 1.); k = k * k * (3. - 2. * k);
+        vec3 start = target + uFrom * (5. + seed * 70.) + jitter * (1. + seed * 4.);
+        vec3 drift = vec3(sin(uTime * .7 + seed * 40.) * .03, fract(uTime * .05 + seed) * .14 - .07, cos(uTime * .6 + seed * 31.) * .03);
+        vec4 mv = modelViewMatrix * vec4(mix(start, target + drift, k), 1.); gl_Position = projectionMatrix * mv;
+        float tw = .55 + .45 * sin(uTime * (1.3 + seed * 3.) + seed * 60.);
+        vA = uAlpha * tw * step(.001, uForm) * (.3 + .7 * smoothstep(0., .7, target.y)) * mix(.6, 1., k);
+        gl_PointSize = uPx * (1.3 + fract(seed * 7.) * 1.5) * clamp(7. / max(.5, -mv.z), .25, 4.);
+      }`,
+    fragmentShader: `uniform float uWarm; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, 0., d) * vA; if (a < .003) discard;
+      gl_FragColor = vec4(mix(vec3(.8, .86, 1.), vec3(1., .78, .5), uWarm), a); }`,
+  });
+  /** a human shape in points: head, shoulders, a long robe dissolving towards the ground, arms at the sides */
+  function presence(count: number, seed: number, at: THREE.Vector3) {
+    const r = seeded(seed), target = new Float32Array(count * 3), jitter = new Float32Array(count * 3), seeds = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const part = r(), a = r() * Math.PI * 2, shell = .78 + .22 * Math.sqrt(r());
+      let x = 0, y = 0, z = 0;
+      if (part < .14) { const u = r() * 2 - 1, q = Math.sqrt(1 - u * u); x = Math.cos(a) * q * .11 * shell; z = Math.sin(a) * q * .1 * shell; y = 1.58 + u * .12 * shell; }
+      else if (part < .2) { x = Math.cos(a) * .045; z = Math.sin(a) * .045; y = 1.42 + r() * .06; }
+      else if (part < .3) { const side = r() > .5 ? 1 : -1, t = r(); x = side * (.21 + t * .05) + Math.cos(a) * .04; z = Math.sin(a) * .04; y = 1.36 - t * .5; }
+      else { const t = Math.pow(r(), .85), yy = 1.38 - t * 1.36, w = .17 + .03 * Math.sin(t * 3) + t * .13; x = Math.cos(a) * w * shell; z = Math.sin(a) * w * .66 * shell; y = yy; }
+      target.set([x, y, z], i * 3); jitter.set([(r() - .5) * 2, (r() - .5) * 2, (r() - .5) * 2], i * 3); seeds[i] = r();
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(target.slice(), 3)); geo.setAttribute("target", new THREE.BufferAttribute(target, 3));
+    geo.setAttribute("jitter", new THREE.BufferAttribute(jitter, 3)); geo.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
+    const material = presenceMaterial(count), points = new THREE.Points(geo, material); points.position.copy(at); points.frustumCulled = false; root.add(points);
+    return { points, u: material.uniforms };
+  }
+  // Those who walked before: faint presences beside the road, each carrying a small light
+  type Echo = { form: ReturnType<typeof presence>; ember: THREE.Sprite; pos: THREE.Vector3; base: number };
   const echoes: Echo[] = [];
   { const r = seeded(300);
     for (const s of [38, 60, 82, 124, 142, 196, 218, 232, 272, 292, 346, 366, 418, 428, 516, 534, 552]) {
-      const pos = beside(s, r() > .5 ? 1 : -1, 6 + r() * 9);
-      const figure = new THREE.Sprite(new THREE.SpriteMaterial({ map: figureTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); figure.center.set(.5, 0); figure.scale.set(.7, 1.62, 1); figure.position.copy(pos); root.add(figure);
-      const ember = glowSprite(glowTexture, 0xff9a40, 0, true); ember.position.copy(pos).add(new THREE.Vector3(.28, 1.02, 0)); ember.scale.setScalar(.32); root.add(ember);
-      echoes.push({ figure, ember, pos, base: .08 + r() * .05 });
+      const pos = beside(s, r() > .5 ? 1 : -1, 6 + r() * 9), form = presence(o.small ? 110 : 180, 900 + s, pos); form.u.uForm.value = 2; form.u.uWarm.value = .55;
+      const ember = glowSprite(glowTexture, 0xff9a40, 0, true); ember.position.copy(pos).add(new THREE.Vector3(.27, .98, 0)); ember.scale.setScalar(.3); root.add(ember);
+      echoes.push({ form, ember, pos, base: .5 + r() * .3 });
     } }
 
   // ─── Stations ───
@@ -353,7 +390,11 @@ export function createRite(o: Options) {
     const plinth = rockMesh(new THREE.Vector3(1.5, .7, .8)); plinth.position.set(0, -.15, -.05); L.group.add(plinth); L.focus.y = L.pos.y + 1.25;
     const brick = new THREE.MeshStandardMaterial({ color: 0x6e5a44, roughness: 1 });
     for (const [x, z, w, h, ry] of [[-3.2, -2.6, 3.4, .9, .1], [2.9, -3.2, 2.6, .6, -.15], [-4.6, .6, 2.2, .5, 1.45], [4.4, -.2, 1.8, 1.1, 1.62], [.2, -5.4, 4.2, .4, .04], [-1.6, -4.8, 1.2, 1.3, .3]]) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, .45), brick); wall.position.set(x, h / 2 - .08, z); wall.rotation.y = ry; wall.castShadow = wall.receiveShadow = true; L.group.add(wall); }
+      // the footing of a wall that fell long ago: a line of worn stones, some still stacked
+      const along = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry)), count = Math.max(2, Math.round(w / .55)), wr = seeded(Math.round(x * 31 + z * 7));
+      for (let k = 0; k < count; k++) for (let layer = 0; layer < (h > .7 && wr() > .4 ? 2 : 1); layer++) {
+        const sz = .42 + wr() * .22, st = rockMesh(new THREE.Vector3(sz, sz * .55, sz * .8)), p = along.clone().multiplyScalar((k / (count - 1) - .5) * w);
+        st.position.set(x + p.x + (wr() - .5) * .12, -.1 + layer * sz * .4, z + p.z + (wr() - .5) * .12); st.rotation.set((wr() - .5) * .2, ry + (wr() - .5) * .6, (wr() - .5) * .2); L.group.add(st); } }
     document.fonts?.load('62px "Noto Sans Cuneiform"', "\u{12000}").then(() => paintTablet()).catch(() => paintTablet()); }
 
   // 4 · four stone seats on the knoll, under the widest sky
@@ -389,7 +430,10 @@ export function createRite(o: Options) {
     const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xff8a50, size: .045, map: glowTexture, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); pts.frustumCulled = false; root.add(pts);
     return { pts, seeds, pos }; })();
   { const L = live[6], burnt = new THREE.MeshStandardMaterial({ color: 0x24201d, roughness: 1 });
-    [[-1.6, 1, .2, 1.1, 2, .35], [-.45, .7, .1, 1, 1.4, .3], [.8, .5, -.25, 1.2, 1, .3], [1.85, .25, .4, .8, .5, .3]].forEach(([x, y, rz, w, h, d]) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), burnt); b.position.set(x, y, -.9); b.rotation.z = rz; b.castShadow = b.receiveShadow = true; L.group.add(b); });
+    // a fallen house: blackened stones heaped where its walls stood, and two charred beams
+    const char = o.rock ? (Array.isArray(o.rock.material) ? o.rock.material[0] : o.rock.material).clone() as THREE.MeshStandardMaterial : burnt; if (char !== burnt) char.color.multiplyScalar(.28);
+    { const rr = seeded(1939); for (let k = 0; k < 16; k++) { const sz = .3 + rr() * .5, st = rockMesh(new THREE.Vector3(sz, sz * .6, sz * .85)); st.material = char; st.position.set(-2.4 + rr() * 4.8, -.08 + (rr() > .7 ? .2 : 0), -1.4 + rr() * 1.1); st.rotation.set(rr() - .5, rr() * 6, rr() - .5); L.group.add(st); } }
+    for (const [x, rz, len] of [[-1.2, .5, 2.4], [1.1, -.9, 1.9]]) { const beam = new THREE.Mesh(new THREE.BoxGeometry(len, .16, .18), burnt); beam.position.set(x, .35, -1); beam.rotation.set(.1, .3, rz); beam.castShadow = true; L.group.add(beam); }
     const block = rockMesh(new THREE.Vector3(.7, .7, .7)); block.position.set(0, 0, .2); L.group.add(block);
     block.geometry.computeBoundingBox(); const top = (block.geometry.boundingBox?.max.y ?? .7) * block.scale.y - .02;
     const candle = new THREE.Mesh(new THREE.CylinderGeometry(.045, .05, .3, 12), new THREE.MeshStandardMaterial({ color: 0xe9dfca, roughness: .6, emissive: 0x6a4410, emissiveIntensity: 0 })); candle.position.set(0, top + .15, .2); L.group.add(candle);
@@ -402,7 +446,7 @@ export function createRite(o: Options) {
       const [quote, source] = riteUi.udhr[lang].split(lang === "zh" ? "——" : " — ");
       g.font = lang === "zh" ? '600 46px "Noto Serif TC",serif' : 'italic 40px "Source Serif 4",serif';
       const units = lang === "zh" ? [...quote] : quote.split(" "), lines: string[] = []; let row = "";
-      for (const unit of units) { const test = row ? row + (lang === "zh" ? "" : " ") + unit : unit; if (g.measureText(test).width > 900 && row) { lines.push(row); row = unit; } else row = test; }
+      for (const unit of units) { const test = row ? row + (lang === "zh" ? "" : " ") + unit : unit; if (g.measureText(test).width > 900 && row && !"，。、」』；：！？".includes(unit)) { lines.push(row); row = unit; } else row = test; }
       lines.push(row); lines.forEach((r, k) => g.fillText(r, 512, 150 - (lines.length - 1) * 26 + k * 52));
       g.font = lang === "zh" ? '400 28px "Noto Serif TC",serif' : '400 26px "Outfit",sans-serif'; g.fillStyle = "#bfb39b"; g.fillText((lang === "zh" ? "——" : "— ") + source, 512, 252); plaqueTex.needsUpdate = true; };
     const plaque = new THREE.Mesh(new THREE.PlaneGeometry(2.8, .82), new THREE.MeshBasicMaterial({ map: plaqueTex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false })); plaque.position.set(.2, 1.85, -.7); L.group.add(plaque);
@@ -432,20 +476,20 @@ export function createRite(o: Options) {
   // ─── The walk's stars: one constellation, the Torchbearer, fixed in the turning sky ───
   // Each station lights its people; a ribbon of light joins them to those already lit; at the end your star is the flame.
   const flareTex = canvasTexture(128, 128, g => { const gr = g.createLinearGradient(0, 64, 128, 64); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 62, 128, 4); g.save(); g.translate(64, 64); g.rotate(Math.PI / 2); g.translate(-64, -64); g.fillRect(0, 63, 128, 2.4); g.restore(); });
-  const beamTex = canvasTexture(16, 256, g => { const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.6, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 16, 256); });
   const ribbonTex = canvasTexture(64, 4, g => { const gr = g.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,1)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 4); });
   const skyGroup = o.civ.group, R = 1850;
-  type Star = { ref: string; station: number; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; hit: THREE.Mesh; figure: THREE.Sprite; beam: THREE.Mesh; foot: THREE.Vector3; metAt: number; raise: number };
+  type Star = { ref: string; station: number; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; hit: THREE.Mesh; form: ReturnType<typeof presence>; foot: THREE.Vector3; metAt: number; raise: number };
   const stars: Star[] = [];
   const layout = new Map<string, THREE.Vector3>();
   /** Lay the figure out in the sky's own frame so that, at the moment the walk begins, it stands ahead of you and a
    * little to the right; the sky's turning then carries it across the road ahead over the length of the walk. */
   function anchor() {
-    const theta = skyGroup.rotation.y, az = Math.atan2(AXIS.dz, AXIS.dx) + THREE.MathUtils.degToRad(36), el = THREE.MathUtils.degToRad(40);
-    const C = new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
+    const theta = skyGroup.rotation.y, el = THREE.MathUtils.degToRad(33), toSky = new THREE.Matrix4().makeRotationY(-theta);
+    const moon = o.moon ? o.moon.position.clone().normalize() : null, centre = (offset: number) => { const a = Math.atan2(AXIS.dz, AXIS.dx) + THREE.MathUtils.degToRad(offset); return new THREE.Vector3(Math.cos(el) * Math.cos(a), Math.sin(el), Math.cos(el) * Math.sin(a)); };
+    const offset = [32, 20, 44, 8, 56, -6, 68, -20].find(d => !moon || centre(d).applyMatrix4(toSky).angleTo(moon) > THREE.MathUtils.degToRad(46)) ?? 32;
+    const az = Math.atan2(AXIS.dz, AXIS.dx) + THREE.MathUtils.degToRad(offset), C = centre(offset), SCALE = .62;
     const left = new THREE.Vector3(Math.sin(az), 0, -Math.cos(az)), up = new THREE.Vector3(0, 1, 0).addScaledVector(C, -C.y).normalize();
-    const toSky = new THREE.Matrix4().makeRotationY(-theta);
-    for (const [ref, [u, v]] of Object.entries(torchbearer.points)) layout.set(ref, C.clone().addScaledVector(left, Math.tan(THREE.MathUtils.degToRad(u))).addScaledVector(up, Math.tan(THREE.MathUtils.degToRad(v - 40))).normalize().applyMatrix4(toSky));
+    for (const [ref, [u, v]] of Object.entries(torchbearer.points)) layout.set(ref, C.clone().addScaledVector(left, Math.tan(THREE.MathUtils.degToRad(u * SCALE))).addScaledVector(up, Math.tan(THREE.MathUtils.degToRad((v - 40) * SCALE))).normalize().applyMatrix4(toSky));
     for (const x of stars) { const p = layout.get(x.ref)!.clone().multiplyScalar(R); x.core.position.copy(p); x.halo.position.copy(p); x.flare.position.copy(p); x.hit.position.copy(p); }
   }
   const skyPoint = (ref: string) => { skyGroup.updateMatrixWorld(); return skyGroup.localToWorld(layout.get(ref)!.clone().multiplyScalar(R)); };
@@ -457,11 +501,8 @@ export function createRite(o: Options) {
     const hit = new THREE.Mesh(new THREE.SphereGeometry(R * .024, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); hit.userData = { kind: "star", station: L.i, index: stars.length }; targets.push(hit); skyGroup.add(hit);
     const foot = L.st.kind === "axial" ? plinths[k].clone() : L.pos.clone().addScaledVector(at(L.s).sub(L.pos).setY(0).normalize(), .3).addScaledVector(tangent(L.s), (k - (all.length - 1) / 2) * 1.05 + 1.7);
     if (L.st.kind !== "axial") foot.y = height(foot.x, foot.z);
-    const figure = new THREE.Sprite(new THREE.SpriteMaterial({ map: figureTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); figure.center.set(.5, 0); figure.scale.set(.74, 1.66, 1); figure.position.copy(foot); root.add(figure);
-    // the beam comes down from the star itself, wherever the turning sky has carried it
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.7, .12, 260, 10, 1, true), new THREE.MeshBasicMaterial({ map: beamTex, color: 0xffe0b0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-    beam.visible = false; beam.frustumCulled = false; root.add(beam);
-    stars.push({ ref, station: L.i, core, halo, flare, hit, figure, beam, foot, metAt: -1, raise: 0 });
+    const form = presence(o.small ? 260 : 520, 40 + stars.length * 13, foot);
+    stars.push({ ref, station: L.i, core, halo, flare, hit, form, foot, metAt: -1, raise: 0 });
   }));
   // ribbons of light between the people, drawn from whoever was lit first to whoever has just been lit
   const edges = torchbearer.edges.map(([a, b]) => ({ a, b, from: a, p: 0 }));
@@ -474,7 +515,7 @@ export function createRite(o: Options) {
   ribbons.frustumCulled = false; skyGroup.add(ribbons);
   const isLit = (ref: string) => ref === "you" ? mineAt >= 0 && time - mineAt > 6.6 || mineRemembered : stars.find(x => x.ref === ref)!.metAt > -1;
   const litAt = (ref: string) => ref === "you" ? (mineRemembered ? -1000 : mineAt + 6.6) : stars.find(x => x.ref === ref)!.metAt;
-  let figureGlow = 0, mineRemembered = false;
+  let figureGlow = 0, mineRemembered = false, ribbonFade = 1;
   function rebuildConstellation() {
     for (const e of edges) {
       if (!isLit(e.a) || !isLit(e.b)) { e.p = 0; continue; }
@@ -482,13 +523,13 @@ export function createRite(o: Options) {
     }
   }
   function drawRibbons(dt: number, dim: number) {
-    const pos = ribbonGeo.attributes.position as THREE.BufferAttribute, col = ribbonGeo.attributes.color as THREE.BufferAttribute, half = R * .0011 * (1 + figureGlow * .5);
+    const pos = ribbonGeo.attributes.position as THREE.BufferAttribute, col = ribbonGeo.attributes.color as THREE.BufferAttribute, half = R * .0007 * (1 + figureGlow * .3);
     edges.forEach((e, i) => {
       if (e.p > 0 && e.p < 1) e.p = Math.min(1, e.p + dt / 1.8);
       const A = layout.get(e.from)!.clone().multiplyScalar(R), B = layout.get(e.from === e.a ? e.b : e.a)!.clone().multiplyScalar(R), end = A.clone().lerp(B, sm(0, 1, e.p));
       const side = new THREE.Vector3().crossVectors(B.clone().sub(A), A.clone().add(B)).normalize().multiplyScalar(half);
       [A.clone().sub(side), A.clone().add(side), end.clone().sub(side), end.clone().add(side)].forEach((v, k) => pos.setXYZ(i * 4 + k, v.x, v.y, v.z));
-      const a = (e.p > 0 ? .5 + .5 * figureGlow : 0) * (1 - dim), warm = e.a === "you" || e.b === "you" ? 1 : 0;
+      const a = (e.p > 0 ? .3 + .35 * figureGlow : 0) * (1 - dim) * ribbonFade, warm = e.a === "you" || e.b === "you" ? 1 : 0;
       for (let k = 0; k < 4; k++) col.setXYZ(i * 4 + k, a * 1, a * (.84 - warm * .14), a * (.62 - warm * .22));
     });
     pos.needsUpdate = col.needsUpdate = true;
@@ -525,7 +566,7 @@ export function createRite(o: Options) {
   function wakeCiv(n: number) {
     const p = civGeo.attributes.position as THREE.BufferAttribute;
     while (civWoken < n && civWoken < civOrder.length) {
-      const sprites = [0, 1, 2, 3].map(() => { const sp = glowSprite(glowTexture, 0xffe2b0, 0); skyGroup.add(sp); return sp; });
+      const sprites = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(() => { const sp = glowSprite(glowTexture, 0xffe8c4, 0); skyGroup.add(sp); return sp; });
       gifts.push({ sprites, from: new THREE.Vector3().fromBufferAttribute(p, civOrder[civWoken]).normalize(), t0: time });
       civWoken++; if (civWoken % 4 === 1) sound.bell(79 + (civWoken % 9), .025);
     }
@@ -534,10 +575,10 @@ export function createRite(o: Options) {
   function flyGifts() {
     const to = layout.get("you")!;
     for (let k = gifts.length - 1; k >= 0; k--) {
-      const gift = gifts[k], u = Math.min(1, (time - gift.t0) / 1.7);
-      gift.sprites.forEach((sp, j) => { const v = Math.max(0, u - j * .035), e = v * v * (3 - 2 * v);
-        sp.position.copy(gift.from).lerp(to, e).normalize().multiplyScalar(R * .99); sp.material.opacity = Math.sin(Math.PI * Math.min(1, v * 1.05)) * (1 - j * .24);
-        sp.scale.setScalar(R * (.014 - e * .006) * (1 - j * .18)); });
+      const gift = gifts[k], u = Math.min(1, (time - gift.t0) / 2.6);
+      gift.sprites.forEach((sp, j) => { const v = Math.max(0, u - j * .007), e = v * v * (3 - 2 * v);
+        sp.position.copy(gift.from).lerp(to, e).normalize().multiplyScalar(R * .99); sp.material.opacity = Math.pow(Math.sin(Math.PI * Math.min(1, v)), .7) * .5 * (1 - j * .075);
+        sp.scale.setScalar(R * (.0075 - e * .003) * (1 - j * .07)); });
       if (u >= 1) { gift.sprites.forEach(sp => { skyGroup.remove(sp); sp.material.dispose(); }); gifts.splice(k, 1); flamePulse = 1; }
     }
     flamePulse = Math.max(0, flamePulse - .03);
@@ -587,7 +628,7 @@ export function createRite(o: Options) {
   }
   function wake(i: number, show: boolean) {
     const star = stars[i]; if (star.metAt > -1) { if (show) showFigure(i); return; }
-    star.metAt = time; star.beam.visible = true; rebuildConstellation(); sound.bell(72 + (i % 6) * 2, .055); if (show) showFigure(i);
+    star.metAt = time; star.form.u.uFrom.value.copy(starWorld(i).sub(star.foot).normalize()); rebuildConstellation(); sound.bell(72 + (i % 6) * 2, .055); if (show) showFigure(i);
     if (state === "walk" && index === 4 && !live[4].done && stars.every(x => x.station !== 4 || x.metAt > -1)) setTimeout(() => complete(4), 1600);
   }
   const CHORDS = [[50, 57, 62, 65], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 58], [41, 53, 60, 65, 69], [48, 55, 60, 64], [38, 45, 50, 53], [38, 45, 50, 54, 57]];
@@ -603,7 +644,7 @@ export function createRite(o: Options) {
 
   function resetWalk() {
     live.forEach(L => { L.done = false; L.doneAt = -1; L.reset?.(); }); index = 0; s = 0; mineAt = -1; finaleAt = -1; civWoken = 0; crossed = false; passed.clear();
-    stars.forEach(x => { x.metAt = -1; x.raise = 0; x.beam.visible = false; }); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setCairns(0);
+    stars.forEach(x => { x.metAt = -1; x.raise = 0; x.form.u.uForm.value = 0; }); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setCairns(0);
     mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true;
     trail.material.opacity = 0; standLit = 0; crestLit = 0;
   }
@@ -796,7 +837,7 @@ export function createRite(o: Options) {
       // ── fire: the torch, the cairns, a few pooled lights
       const lit = live[0].done && state !== "home" ? THREE.MathUtils.lerp(1, .14, g) : index === 0 && phase === "act" && state === "walk" ? Math.min(1, holdT / 1.8) : 0;
       torchFlame.uniforms.uTime0.value = sceneTime; torchFlame.uniforms.uGlobal.value = lit * fl * (1 + raise * .3); torchLight.intensity = lit * 5.5 * fl; torchLight.position.copy(torch.position).add(new THREE.Vector3(0, .2, 0));
-      cairnFlame.uniforms.uTime0.value = sceneTime; cairnFlame.uniforms.uGlobal.value = (.95 + .1 * fl) * (1 - g * .7);
+      cairnFlame.uniforms.uTime0.value = sceneTime; cairnFlame.uniforms.uGlobal.value = (.95 + .1 * fl) * (1 - g * .7); cairnFlame.uniforms.uWind.value = .25 + .35 * Math.sin(sceneTime * .65) * Math.sin(sceneTime * .23 + 1);
       for (let i = 0; i < N; i++) {
         const c = cairns[i];
         if (state === "walk" && live[0].done && c.lit === 0 && c.s < s + 5.5 && !(c.dead && !ashL.done)) { c.lit = .001; sound.ignite(); dirty = true; }
@@ -810,7 +851,7 @@ export function createRite(o: Options) {
       const nearest: { c: Cairn; d: number }[] = [];
       for (const c of cairns) { if (c.lit <= 0) continue; const d = c.top.distanceToSquared(camera.position); if (d > 900) continue; nearest.push({ c, d }); }
       nearest.sort((a, b) => a.d - b.d);
-      pool.forEach((l, k) => { const n = nearest[k]; if (!n) { l.intensity = 0; return; } l.position.copy(n.c.top).add(new THREE.Vector3(0, .35, 0)); l.intensity = 3.4 * n.c.lit * fl * (1 - g * .6); });
+      lights.forEach((l, k) => { const n = nearest[k]; if (!n) { l.intensity = 0; return; } l.position.copy(n.c.top).add(new THREE.Vector3(0, .35, 0)); l.intensity = 3.4 * n.c.lit * fl * (1 - g * .6); });
       standFlame.set(standLit); standFlame.material.uniforms.uTime0.value = sceneTime; standFlame.material.uniforms.uGlobal.value = fl; standLight.intensity = standLit * 2.6 * fl;
       // ── the war: smoke over the sky, the moon dims, cinders fall, your flame almost goes out; at the end of the road the air clears
       const clear = state === "finale" ? sm(24, 32, t - finaleAt) : state === "return" ? 1 - sm(0, 1, (t - returnAt) / 26) : 0;
@@ -833,7 +874,7 @@ export function createRite(o: Options) {
         m.opacity = state === "walk" ? sm(18, 9, d) * sm(3, 4.6, d) * (1 - lookingUp) * (P.done && s > P.s + 2 ? sm(P.s + 10, P.s + 3, s) : 1) : 0; P.title.mesh.visible = m.opacity > .01;
         P.title.mesh.lookAt(camera.position.x, P.title.mesh.position.y, camera.position.z); }
       const journeying = state !== "idle" && state !== "intro";
-      for (const e of echoes) { const d = e.pos.distanceTo(camera.position), a = journeying ? e.base * sm(8, 18, d) * sm(140, 60, d) * (1 - g) : 0; e.figure.material.opacity = a; e.ember.material.opacity = a * 2.2 * fl; e.figure.visible = e.ember.visible = a > .003; }
+      for (const e of echoes) { const d = e.pos.distanceTo(camera.position), a = journeying ? e.base * sm(7, 16, d) * sm(140, 60, d) * (1 - g) : 0; e.form.u.uAlpha.value = a; e.form.u.uTime.value = t; e.ember.material.opacity = a * .35 * fl; e.form.points.visible = e.ember.visible = a > .003; }
       // ── the walk's stars
       if (state !== "finale") figureGlow += ((mineRemembered || live[7].done ? .7 : 0) - figureGlow) * Math.min(1, dt * .5);
       stars.forEach((x, i) => {
@@ -842,10 +883,9 @@ export function createRite(o: Options) {
         x.core.material.opacity = a * (met ? 1 : .5 + charge * .5); x.halo.material.opacity = a * (met ? .22 + figureGlow * .1 : .06 + charge * .3); x.flare.material.opacity = a * (met ? .5 : .1 + charge * .4);
         x.core.scale.setScalar(R * (met ? .0105 * glow : .006 + charge * .004) * pulse); x.halo.scale.setScalar(R * (met ? .034 * glow : .02 + charge * .02) * pulse); x.flare.scale.setScalar(R * (met ? .04 : .024) * pulse); x.flare.material.rotation = t * .04 + i;
         x.core.material.color.setRGB(1, met ? .86 : .95, met ? .62 : .9);
-        x.figure.material.opacity = met ? sm(0, 1, (t - x.metAt - 1) / 2) * .27 * (1 - g * .6) : 0;
-        const b = x.beam.material as THREE.MeshBasicMaterial; b.opacity = met && !hidden ? .5 * Math.exp(-(t - x.metAt) * .35) * (1 - sm(10, 16, t - x.metAt)) : 0; x.beam.visible = b.opacity > .004;
-        if (x.beam.visible) { const dir = starWorld(i).sub(x.foot).normalize(); x.beam.position.copy(x.foot).addScaledVector(dir, 130); x.beam.quaternion.setFromUnitVectors(UP, dir); }
+        x.form.u.uForm.value = met ? Math.min(2, (t - x.metAt - .4) / 4.5) : 0; x.form.u.uTime.value = t; x.form.u.uAlpha.value = met ? .6 * (1 - g * .6) * (hidden ? 0 : 1) : 0; x.form.points.visible = met;
       });
+      ribbonFade = state === "finale" ? 1 - sm(25, 31, t - finaleAt) : state === "return" || state === "home" || mineRemembered ? 0 : 1; ribbons.visible = ribbonFade > .01;
       drawRibbons(dt, g);
       // ── sparks of your fire
       for (let k = sparks.length - 1; k >= 0; k--) { const sp = sparks[k], u = Math.min(1, (t - sp.t0) / sp.dur), mid = sp.from.clone().lerp(sp.to, .5).add(new THREE.Vector3(0, 2, 0));

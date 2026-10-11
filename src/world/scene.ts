@@ -174,7 +174,10 @@ export async function initWorld() {
       uv[i*2]=x/2.6;uv[i*2+1]=z/2.6;
       // The walk's burnt country is darker and greyer underfoot.
       const shade=.55+fbm2(x*.21+8,z*.21+4)*.65,burnt=ashAmount(x,z);
-      colors.set([shade*(1-burnt*.64),shade*.94*(1-burnt*.6),shade*.83*(1-burnt*.52)],i*3);
+      // West of the clearing the walk crosses moor: olive grass with patches of heather, not leaf litter.
+      const moor=smoothstep(-30,-75,x)*(1-burnt),heath=smoothstep(.45,.7,fbm2(x*.045+3,z*.045+11));
+      const tint=[.82-heath*.02,.93-heath*.17,.72+heath*.06];
+      colors.set([shade*(1+(tint[0]-1)*moor)*(1-burnt*.64),shade*.94*(1+(tint[1]/.94-1)*moor)*(1-burnt*.6),shade*.83*(1+(tint[2]/.83-1)*moor)*(1-burnt*.52)],i*3);
       const jitter=(vnoise2(x*2,z*2)-.5)*.45;
       const path=1-smoothstep(.42,1.25,distToPath(x,z)+jitter);
       const yard=1-smoothstep(2.2,3.5,Math.hypot(x+1,z+5));
@@ -428,6 +431,7 @@ export async function initWorld() {
   let riteGrass: {geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial}|undefined;
   let riteForest: THREE.Group|undefined;
   const riteFerns: {geometry:THREE.BufferGeometry;material:THREE.Material}[]=[];
+  const riteGrasses: {geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial}[]=[];
 
   // ─── Places ───
   type Place = {
@@ -650,6 +654,13 @@ export async function initWorld() {
     populateForest(scene,forest.scene,details.scene,wind,terrainHeight,smallScreen,object=>vista.reflect(object),(x,z)=>distToPath(x,z)<3.6);
     populateUnderstory(scene,understory.scene,wind,terrainHeight,distToPath,smallScreen);
     riteForest=forest.scene;
+    understory.scene.children.filter(n=>!n.name.startsWith("fern")).forEach(source=>source.traverse(node=>{
+      if(!(node instanceof THREE.Mesh))return;
+      const geo=node.geometry.clone().applyMatrix4(node.matrixWorld);geo.computeBoundingBox();
+      const box=geo.boundingBox!,center=box.getCenter(new THREE.Vector3());geo.translate(-center.x,-box.min.y,-center.z);geo.scale(1.5,1.5,1.5);
+      const material=(node.material as THREE.MeshStandardMaterial).clone();material.alphaTest=.42;material.transparent=false;material.side=THREE.DoubleSide;material.color.set(0xffffff);
+      riteGrasses.push({geometry:geo,material});
+    }));
     understory.scene.children.filter(n=>n.name.startsWith("fern")).forEach(source=>source.traverse(node=>{
       if(!(node instanceof THREE.Mesh))return;
       const geo=node.geometry.clone().applyMatrix4(node.matrixWorld);geo.computeBoundingBox();
@@ -794,7 +805,7 @@ export async function initWorld() {
   ready();
   const exploration = createExploration(camera, canvas, starsGroup, places);
   // The walk: shares only the fire with the rest of the world.
-  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,ferns:riteFerns,
+  const rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,ferns:riteFerns,grasses:riteGrasses,moon:moonDisc,
     grade:grade.uniforms as unknown as {uVignette:{value:number};uGrain:{value:number};uSat:{value:number};uTint:{value:THREE.Color};uTime:{value:number}},
     skyDawn:skyUniforms.uDawn,skyAurora:skyUniforms.uAurora,
     mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce,
