@@ -5,6 +5,7 @@ import { riteStations, riteUi, resolveFigure, say, chronologicalSky, yearsAgoAt,
 import { createRiteSound, type RiteMix } from "./rite-sound.ts";
 import { addRoadside, type Placement } from "./rite-land.ts";
 import { addAtmosphere } from "./rite-atmos.ts";
+import { createLantern, loadShadowArt, shadowSpecs, lanternCrowd } from "./rite-shadows.ts";
 import { overview } from "./journey.ts";
 import type { createWind } from "./wind";
 
@@ -253,51 +254,9 @@ export function createRite(o: Options) {
   const lights = Array.from({ length: o.small ? 2 : 4 }, () => { const l = new THREE.PointLight(0xffa052, 0, 9, 2); root.add(l); return l; });
   function setCairns(value: number) { cairns.forEach((c, i) => { c.lit = value; iLit[i] = glowLit[i] = value; placeGlow(i); }); litAttr.needsUpdate = glowLitAttr.needsUpdate = true; groundGlow.instanceMatrix.needsUpdate = true; }
 
-  // ─── Presences: the people met on the way are not cut-outs but drifting light that keeps a human shape ───
-  // When a star is lit, its light falls from the star like slow snow and gathers into the figure beside the road.
-  const presenceMaterial = (count: number) => new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-    uniforms: { uForm: { value: 0 }, uTime: { value: 0 }, uAlpha: { value: 0 }, uPx: { value: pixelRatio }, uFrom: { value: new THREE.Vector3(0, 1, 0) }, uWarm: { value: 1 } },
-    vertexShader: `attribute vec3 target; attribute vec3 jitter; attribute float seed;
-      uniform float uForm, uTime, uAlpha, uPx; uniform vec3 uFrom; varying float vA;
-      void main(){
-        float k = clamp((uForm - seed * .55) / .45, 0., 1.); k = k * k * (3. - 2. * k);
-        vec3 start = target + uFrom * (5. + seed * 70.) + jitter * (1. + seed * 4.);
-        vec3 drift = vec3(sin(uTime * .7 + seed * 40.) * .03, fract(uTime * .05 + seed) * .14 - .07, cos(uTime * .6 + seed * 31.) * .03);
-        vec4 mv = modelViewMatrix * vec4(mix(start, target + drift, k), 1.); gl_Position = projectionMatrix * mv;
-        float tw = .55 + .45 * sin(uTime * (1.3 + seed * 3.) + seed * 60.);
-        vA = uAlpha * tw * step(.001, uForm) * (.3 + .7 * smoothstep(0., .7, target.y)) * mix(.6, 1., k);
-        gl_PointSize = uPx * (1.3 + fract(seed * 7.) * 1.5) * clamp(7. / max(.5, -mv.z), .25, 4.);
-      }`,
-    fragmentShader: `uniform float uWarm; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, 0., d) * vA; if (a < .003) discard;
-      gl_FragColor = vec4(mix(vec3(.8, .86, 1.), vec3(1., .78, .5), uWarm), a); }`,
-  });
-  /** a human shape in points: head, shoulders, a long robe dissolving towards the ground, arms at the sides */
-  function presence(count: number, seed: number, at: THREE.Vector3) {
-    const r = seeded(seed), target = new Float32Array(count * 3), jitter = new Float32Array(count * 3), seeds = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      const part = r(), a = r() * Math.PI * 2, shell = .78 + .22 * Math.sqrt(r());
-      let x = 0, y = 0, z = 0;
-      if (part < .14) { const u = r() * 2 - 1, q = Math.sqrt(1 - u * u); x = Math.cos(a) * q * .11 * shell; z = Math.sin(a) * q * .1 * shell; y = 1.58 + u * .12 * shell; }
-      else if (part < .2) { x = Math.cos(a) * .045; z = Math.sin(a) * .045; y = 1.42 + r() * .06; }
-      else if (part < .3) { const side = r() > .5 ? 1 : -1, t = r(); x = side * (.21 + t * .05) + Math.cos(a) * .04; z = Math.sin(a) * .04; y = 1.36 - t * .5; }
-      else { const t = Math.pow(r(), .85), yy = 1.38 - t * 1.36, w = .17 + .03 * Math.sin(t * 3) + t * .13; x = Math.cos(a) * w * shell; z = Math.sin(a) * w * .66 * shell; y = yy; }
-      target.set([x, y, z], i * 3); jitter.set([(r() - .5) * 2, (r() - .5) * 2, (r() - .5) * 2], i * 3); seeds[i] = r();
-    }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(target.slice(), 3)); geo.setAttribute("target", new THREE.BufferAttribute(target, 3));
-    geo.setAttribute("jitter", new THREE.BufferAttribute(jitter, 3)); geo.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
-    const material = presenceMaterial(count), points = new THREE.Points(geo, material); points.position.copy(at); points.frustumCulled = false; root.add(points);
-    return { points, u: material.uniforms };
-  }
-  // Those who walked before: faint presences beside the road, each carrying a small light
-  type Echo = { form: ReturnType<typeof presence>; ember: THREE.Sprite; pos: THREE.Vector3; base: number };
-  const echoes: Echo[] = [];
-  { const r = seeded(300);
-    for (const s of [38, 60, 82, 124, 142, 196, 218, 232, 272, 292, 346, 366, 418, 428, 516, 534, 552]) {
-      const pos = beside(s, r() > .5 ? 1 : -1, 6 + r() * 9), form = presence(o.small ? 110 : 180, 900 + s, pos); form.u.uForm.value = 2; form.u.uWarm.value = .55;
-      const ember = glowSprite(glowTexture, 0xff9a40, 0, true); ember.position.copy(pos).add(new THREE.Vector3(.27, .98, 0)); ember.scale.setScalar(.3); root.add(ember);
-      echoes.push({ form, ember, pos, base: .5 + r() * .3 });
-    } }
+  // ─── The lantern: the people of each age turn around you as shadows on a ring of firelit mist ───
+  const lantern = createLantern({ scene, height, small: o.small });
+  void loadShadowArt(Object.keys(shadowSpecs));
 
   // ─── Stations ───
   type Live = { st: RiteStation; i: number; s: number; pos: THREE.Vector3; group: THREE.Group; done: boolean; doneAt: number; focus: THREE.Vector3;
@@ -478,7 +437,7 @@ export function createRite(o: Options) {
   const flareTex = canvasTexture(128, 128, g => { const gr = g.createLinearGradient(0, 64, 128, 64); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 62, 128, 4); g.save(); g.translate(64, 64); g.rotate(Math.PI / 2); g.translate(-64, -64); g.fillRect(0, 63, 128, 2.4); g.restore(); });
   const ribbonTex = canvasTexture(64, 4, g => { const gr = g.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,1)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 4); });
   const skyGroup = o.civ.group, R = 1850;
-  type Star = { ref: string; station: number; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; hit: THREE.Mesh; form: ReturnType<typeof presence>; foot: THREE.Vector3; metAt: number; raise: number };
+  type Star = { ref: string; station: number; core: THREE.Sprite; halo: THREE.Sprite; flare: THREE.Sprite; hit: THREE.Mesh; metAt: number; raise: number };
   const stars: Star[] = [];
   const layout = new Map<string, THREE.Vector3>();
   /** Lay the figure out in the sky's own frame so that, at the moment the walk begins, it stands ahead of you and a
@@ -499,10 +458,8 @@ export function createRite(o: Options) {
     const flare = glowSprite(flareTex, 0xfff1d6, 0); skyGroup.add(flare);
     const core = glowSprite(glowTexture, 0xfff6e6, 0); skyGroup.add(core);
     const hit = new THREE.Mesh(new THREE.SphereGeometry(R * .024, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); hit.userData = { kind: "star", station: L.i, index: stars.length }; targets.push(hit); skyGroup.add(hit);
-    const foot = L.st.kind === "axial" ? plinths[k].clone() : L.pos.clone().addScaledVector(at(L.s).sub(L.pos).setY(0).normalize(), .3).addScaledVector(tangent(L.s), (k - (all.length - 1) / 2) * 1.05 + 1.7);
-    if (L.st.kind !== "axial") foot.y = height(foot.x, foot.z);
-    const form = presence(o.small ? 260 : 520, 40 + stars.length * 13, foot);
-    stars.push({ ref, station: L.i, core, halo, flare, hit, form, foot, metAt: -1, raise: 0 });
+    void k; void all;
+    stars.push({ ref, station: L.i, core, halo, flare, hit, metAt: -1, raise: 0 });
   }));
   // ribbons of light between the people, drawn from whoever was lit first to whoever has just been lit
   const edges = torchbearer.edges.map(([a, b]) => ({ a, b, from: a, p: 0 }));
@@ -628,7 +585,15 @@ export function createRite(o: Options) {
   }
   function wake(i: number, show: boolean) {
     const star = stars[i]; if (star.metAt > -1) { if (show) showFigure(i); return; }
-    star.metAt = time; star.form.u.uFrom.value.copy(starWorld(i).sub(star.foot).normalize()); rebuildConstellation(); sound.bell(72 + (i % 6) * 2, .055); if (show) showFigure(i);
+    star.metAt = time; rebuildConstellation();
+    // the lantern rises around you, and this person's shadow comes out of the mist
+    if (state === "walk" && lantern.station !== star.station) {
+      // the sages stand beyond the place itself, wherever you happen to be looking
+      const L = live[star.station], dir = L.pos.clone().sub(camera.position);
+      lantern.show(star.station, camera.position.clone(), Math.atan2(dir.z, dir.x), L.st.figures, lanternCrowd[L.st.kind] ?? []);
+    }
+    lantern.reveal(star.ref);
+    if (stars.every(x => x.station !== star.station || x.metAt > -1)) lantern.release(16); sound.bell(72 + (i % 6) * 2, .055); if (show) showFigure(i);
     if (state === "walk" && index === 4 && !live[4].done && stars.every(x => x.station !== 4 || x.metAt > -1)) setTimeout(() => complete(4), 1600);
   }
   const CHORDS = [[50, 57, 62, 65], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 58], [41, 53, 60, 65, 69], [48, 55, 60, 64], [38, 45, 50, 53], [38, 45, 50, 54, 57]];
@@ -644,7 +609,7 @@ export function createRite(o: Options) {
 
   function resetWalk() {
     live.forEach(L => { L.done = false; L.doneAt = -1; L.reset?.(); }); index = 0; s = 0; mineAt = -1; finaleAt = -1; civWoken = 0; crossed = false; passed.clear();
-    stars.forEach(x => { x.metAt = -1; x.raise = 0; x.form.u.uForm.value = 0; }); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setCairns(0);
+    stars.forEach(x => { x.metAt = -1; x.raise = 0; }); lantern.hide(); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setCairns(0);
     mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true;
     trail.material.opacity = 0; standLit = 0; crestLit = 0;
   }
@@ -797,7 +762,7 @@ export function createRite(o: Options) {
           camera.position.lerp(tmp.set(p.x, p.y + eye, p.z), still ? 1 : Math.min(1, dt * 6));
           if (walking) { const a = at(s + 9); face(a.add(new THREE.Vector3(0, EYE - .15 + (a.y - p.y) * .3, 0)), dt * 1.8); }
           else if (phase === "act" && st.actKind === "raise") { const k = raiseTarget >= 0 ? raiseTarget : stars.findIndex(x => x.station === index && x.metAt < 0); face(k >= 0 ? starWorld(k) : L.focus, dt * 1.2); }
-          else if (phase !== "after" || st.kind !== "axial") { if (phase !== "walk") face(L.focus, dt * 1.5); }
+          else if (phase === "narrate" || phase === "act") face(L.focus, dt * 1.5);
         }
       }
       // ── crossing the threshold, and the history heard between the stations
@@ -821,7 +786,7 @@ export function createRite(o: Options) {
           if (pressing && k >= 0) { stars[k].raise += dt; if (stars[k].raise > 1) { stars[k].raise = -99; const target = k; spark(starWorld(k), .9, () => wake(target, true)); raiseTarget = -1; holdAct = false; } } }
         else { holdT = pressing ? holdT + dt : Math.max(0, holdT - dt * 2); if (st.kind === "heavens") armK = Math.min(1, holdT / 1.5); if (holdT > (st.kind === "you" ? 2.4 : st.kind === "fire" ? 1.8 : 1.5)) complete(index, actHit); }
       }
-      if (state === "walk" && phase === "after" && t - phaseAt > 6) { phase = "walk"; phaseAt = t; setLine(""); }
+      if (state === "walk" && phase === "after" && t - phaseAt > (st.figures.length ? 11 : 6)) { phase = "walk"; phaseAt = t; setLine(""); }
       if (state === "walk") setHint(phase === "act" ? hintText : approach >= 1 && s < stop - .01 && (phase === "walk" || phase === "narrate") ? `${riteUi.walkHint[lang]} · ${riteUi.walkKeys[lang]}` : "");
       if (state === "walk" || state === "finale") setYear(yearLabel(state === "finale" ? 0 : yearsAgoAt(s), lang));
       // ── body: kneel for the seed, raise the torch to the sky, offer it to the fire and the candle
@@ -874,7 +839,7 @@ export function createRite(o: Options) {
         m.opacity = state === "walk" ? sm(18, 9, d) * sm(3, 4.6, d) * (1 - lookingUp) * (P.done && s > P.s + 2 ? sm(P.s + 10, P.s + 3, s) : 1) : 0; P.title.mesh.visible = m.opacity > .01;
         P.title.mesh.lookAt(camera.position.x, P.title.mesh.position.y, camera.position.z); }
       const journeying = state !== "idle" && state !== "intro";
-      for (const e of echoes) { const d = e.pos.distanceTo(camera.position), a = journeying ? e.base * sm(7, 16, d) * sm(140, 60, d) * (1 - g) : 0; e.form.u.uAlpha.value = a; e.form.u.uTime.value = t; e.ember.material.opacity = a * .35 * fl; e.form.points.visible = e.ember.visible = a > .003; }
+      lantern.update(dt, fl * (1 - g * .5), camera);
       // ── the walk's stars
       if (state !== "finale") figureGlow += ((mineRemembered || live[7].done ? .7 : 0) - figureGlow) * Math.min(1, dt * .5);
       stars.forEach((x, i) => {
@@ -883,7 +848,6 @@ export function createRite(o: Options) {
         x.core.material.opacity = a * (met ? 1 : .5 + charge * .5); x.halo.material.opacity = a * (met ? .22 + figureGlow * .1 : .06 + charge * .3); x.flare.material.opacity = a * (met ? .5 : .1 + charge * .4);
         x.core.scale.setScalar(R * (met ? .0105 * glow : .006 + charge * .004) * pulse); x.halo.scale.setScalar(R * (met ? .034 * glow : .02 + charge * .02) * pulse); x.flare.scale.setScalar(R * (met ? .04 : .024) * pulse); x.flare.material.rotation = t * .04 + i;
         x.core.material.color.setRGB(1, met ? .86 : .95, met ? .62 : .9);
-        x.form.u.uForm.value = met ? Math.min(2, (t - x.metAt - .4) / 4.5) : 0; x.form.u.uTime.value = t; x.form.u.uAlpha.value = met ? .6 * (1 - g * .6) * (hidden ? 0 : 1) : 0; x.form.points.visible = met;
       });
       ribbonFade = state === "finale" ? 1 - sm(25, 31, t - finaleAt) : state === "return" || state === "home" || mineRemembered ? 0 : 1; ribbons.visible = ribbonFade > .01;
       drawRibbons(dt, g);
