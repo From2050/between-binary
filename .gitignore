@@ -24,3 +24,6 @@ Thumbs.db
 
 # Blender automatic backups (keep editable .blend sources)
 *.blend[0-9]*
+
+# full-size originals of the walk's shadow images (the reduced ones are in public/images/rite/shadows)
+assets/shadows/

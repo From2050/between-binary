@@ -1,8 +1,10 @@
 # 走馬燈剪影：Codex 生圖提示詞
 
+> 2026-10-13：26 張都已經用本機的 Codex CLI 生成（`codex exec`，內建 image generation），原圖在 `assets/shadows/`。要重做某一張，刪掉它之後照下面的提示詞再生成一次就可以。
+
 成年之路每一站完成後，你的火會照亮身邊一圈霧，那個時代的人化成剪影，繞著你緩緩轉動，就像走馬燈。現在的剪影是 `src/world/rite-shadows.ts` 用程式畫的**暫代版本**。
 
-把生成好的圖放進 `public/images/rite/shadows/`，執行下面的指令，就會自動換掉暫代版本，不用改程式：
+把生成好的原圖放進 `assets/shadows/`（或直接放進 `public/images/rite/shadows/`），執行下面的指令，就會自動換掉暫代版本，不用改程式。指令會把每張圖縮成 512 × 1024 的灰階 PNG 放進網站，原圖留在 `assets/shadows/`：
 
 ```sh
 python tools/update-shadow-manifest.py

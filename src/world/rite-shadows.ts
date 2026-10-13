@@ -18,7 +18,8 @@ type Spec = {
   child?: Spec;
 };
 
-const W = 256, H = 512, GROUND = 498;
+const W = 256, H = 512, GROUND = 498; // the drawing space of a shadow
+const CW = 384, CH = 768; // one cell of the atlas: shadow images keep their fine cut-outs
 
 /** The people of the walk, and the anonymous people of each age. */
 export const shadowSpecs: Record<string, Spec> = {
@@ -156,9 +157,9 @@ export async function loadShadowArt(ids: string[]) {
   try { listed = await (await fetch("/images/rite/shadows/manifest.json")).json() as string[]; } catch { return; }
   return Promise.all(ids.filter(id => listed.includes(id)).map(id => new Promise<void>(resolve => {
     const img = new Image(); img.onload = () => {
-      const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d")!;
-      const k = Math.min(W / img.width, H / img.height); g.drawImage(img, (W - img.width * k) / 2, H - img.height * k, img.width * k, img.height * k);
-      const data = g.getImageData(0, 0, W, H), px = data.data; let opaque = true;
+      const c = document.createElement("canvas"); c.width = CW; c.height = CH; const g = c.getContext("2d")!;
+      const k = Math.min(CW / img.width, CH / img.height); g.drawImage(img, (CW - img.width * k) / 2, CH - img.height * k, img.width * k, img.height * k);
+      const data = g.getImageData(0, 0, CW, CH), px = data.data; let opaque = true;
       for (let i = 3; i < px.length; i += 4 * 97) if (px[i] < 250) { opaque = false; break; }
       for (let i = 0; i < px.length; i += 4) { const a = opaque ? 255 - (px[i] * .3 + px[i + 1] * .59 + px[i + 2] * .11) : px[i + 3] * (1 - (px[i] * .3 + px[i + 1] * .59 + px[i + 2] * .11) / 255 * .8); px[i] = px[i + 1] = px[i + 2] = 0; px[i + 3] = Math.max(0, Math.min(255, (a - 24) * 1.15)); }
       g.putImageData(data, 0, 0); overrides.set(id, c); resolve();
@@ -168,7 +169,7 @@ export async function loadShadowArt(ids: string[]) {
 
 const SLOTS = 8;
 export function createLantern(o: { scene: THREE.Scene; height: (x: number, z: number) => number; small: boolean }) {
-  const canvas = document.createElement("canvas"); canvas.width = W * SLOTS; canvas.height = H;
+  const canvas = document.createElement("canvas"); canvas.width = CW * SLOTS; canvas.height = CH;
   const atlas = new THREE.CanvasTexture(canvas); atlas.anisotropy = 4;
   const RADIUS = 7.6, HEIGHT = 7.5, FIG = 6.2; // metres: ring, mist, and the full height of a shadow cell
   const figs = Array.from({ length: SLOTS }, () => new THREE.Vector4(0, 0, 1, 0)); // angle, alpha, scale, mirror
@@ -192,7 +193,8 @@ export function createLantern(o: { scene: THREE.Scene; height: (x: number, z: nu
           vec2 a = vec2((float(i) + clamp(uv.x, .01, .99)) / ${SLOTS}., uv.y);
           float m = texture2D(uAtlas, a).a;
           float b = (texture2D(uAtlas, a + vec2(.0018, 0.)).a + texture2D(uAtlas, a - vec2(.0018, 0.)).a + texture2D(uAtlas, a + vec2(0., .0036)).a + texture2D(uAtlas, a - vec2(0., .0036)).a) * .25;
-          mask = max(mask, m * f.y); rim = max(rim, max(0., b - m) * f.y);
+          float edge = smoothstep(0., .03, uv.x) * smoothstep(1., .97, uv.x); // never show the cell's own border
+          mask = max(mask, m * f.y * edge); rim = max(rim, max(0., b - m) * f.y * edge);
         }
         // a warm mist, lit from inside by your fire, rising from the ground and drifting upward
         float drift = fbm(vec2(th * 2.6 + uTime * .03, y * .42 - uTime * .22)), fine = fbm(vec2(th * 9. - uTime * .05, y * 1.6 - uTime * .5));
@@ -203,7 +205,7 @@ export function createLantern(o: { scene: THREE.Scene; height: (x: number, z: nu
         vec3 warm = mix(vec3(1., .5, .2), vec3(1., .78, .5), drift);
         // the shadows are where the light is blocked; a thin edge of light rims them where the mist is lit behind
         float behind = uLevel * profile * risen * (.35 + .65 * drift) * uFlicker;
-        vec3 col = warm * light * (1. - mask * .97) + vec3(1., .8, .55) * rim * behind * .9 + warm * behind * .05 * mask * fine;
+        vec3 col = warm * light * (1. - mask * .97) + vec3(1., .8, .55) * rim * behind * .5 + warm * behind * .05 * mask * fine;
         gl_FragColor = vec4(col, 1.);
       }` });
   const ring = new THREE.Mesh(new THREE.CylinderGeometry(RADIUS, RADIUS, HEIGHT, o.small ? 64 : 112, 1, true), material);
@@ -213,8 +215,8 @@ export function createLantern(o: { scene: THREE.Scene; height: (x: number, z: nu
   function paint() {
     const g = canvas.getContext("2d")!; g.clearRect(0, 0, canvas.width, canvas.height);
     slots.forEach((slot, i) => {
-      g.save(); g.translate(i * W, 0); g.beginPath(); g.rect(0, 0, W, H); g.clip();
-      const art = overrides.get(slot.id); if (art) g.drawImage(art, 0, 0); else if (shadowSpecs[slot.id]) { if ("filter" in g) g.filter = "blur(2.2px)"; drawFigure(g, shadowSpecs[slot.id]); }
+      g.save(); g.translate(i * CW, 0); g.beginPath(); g.rect(0, 0, CW, CH); g.clip();
+      const art = overrides.get(slot.id); if (art) g.drawImage(art, 0, 0); else if (shadowSpecs[slot.id]) { if ("filter" in g) g.filter = "blur(3px)"; g.scale(CW / W, CH / H); drawFigure(g, shadowSpecs[slot.id]); }
       g.restore();
     });
     atlas.needsUpdate = true;
