@@ -1,8 +1,8 @@
 # 走馬燈剪影：Codex 生圖提示詞
 
-> 2026-10-13：26 張都已經用本機的 Codex CLI 生成（`codex exec`，內建 image generation），原圖在 `assets/shadows/`。要重做某一張，刪掉它之後照下面的提示詞再生成一次就可以。
+> 2026-10-13：32 張都已經用本機的 Codex CLI 生成（`codex exec`，內建 image generation），原圖在 `assets/shadows/`。要重做某一張，刪掉它之後照下面的提示詞再生成一次就可以。
 
-成年之路每一站完成後，你的火會照亮身邊一圈霧，那個時代的人化成剪影，繞著你緩緩轉動，就像走馬燈。現在的剪影是 `src/world/rite-shadows.ts` 用程式畫的**暫代版本**。
+成年之路上，每向一處遺物或墓碑致敬，你的火會照亮身邊一圈霧，那裡紀念的人化成剪影，從你面前的霧裡出來，同時代的人繞著你緩緩轉動，就像走馬燈。沒有圖的時候，`src/world/rite-shadows.ts` 會用程式畫的剪影暫代。
 
 把生成好的原圖放進 `assets/shadows/`（或直接放進 `public/images/rite/shadows/`），執行下面的指令，就會自動換掉暫代版本，不用改程式。指令會把每張圖縮成 512 × 1024 的灰階 PNG 放進網站，原圖留在 `assets/shadows/`：
 
@@ -61,6 +61,19 @@ Portrait image, aspect ratio 1:2 (for example 1024 × 2048).
 | `stargazer` | 天文 | `a child pointing up at the sky, looking up in wonder` |
 | `refugee` | 戰爭 | `a refugee walking with a bundle on his back, leading a small child by the hand` |
 | `planter` | 戰後 | `a person kneeling to plant a young tree sapling in the ground` |
+
+## 路上的遺物與你（6 張）
+
+沒有留下名字的時代，路邊放的是那個時代的遺物；在遺物前致敬時，轉出來的是下面這些人。最後一張是你自己，出現在路盡頭你的石碑前。
+
+| id | 遺物 | 姿勢與道具 |
+|---|---|---|
+| `storyteller` | 火邊的骨頭 | `an elder of the Stone Age sitting by a small fire, both arms spread wide as he tells a story, the fire drawn as white cut-out flames` |
+| `shaman` | 岩壁上的手印 | `a Stone Age shaman dancing, one knee raised, beating a round frame drum held high, a deer-antler headdress` |
+| `sewer` | 骨針與獸皮 | `an Ice Age woman seated, sewing a fur garment with a bone needle and a long thread, the garment draped across her knees` |
+| `king` | 空的王座 | `an ancient Mesopotamian king standing in a long fringed robe, a tall crown, holding a staff of rule upright beside him` |
+| `soldier` | 車輪與長矛 | `a Bronze Age soldier walking with a round shield on his arm and a tall spear on his shoulder, a crested helmet` |
+| `you` | 你的石碑 | `a young person of today in plain modern clothes (a light jacket, trousers, sneakers), standing tall and holding a burning torch high above their head with one arm, face lifted to the sky; the torch flame drawn as white cut-out shapes` |
 
 ## 如果想換風格
 

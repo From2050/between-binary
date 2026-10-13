@@ -215,7 +215,8 @@ test("reduced motion keeps a readable static title and never restarts camera mot
 
 
 import { ritePoints, riteLength, walkTrees, ashTrunks, stationMeters, THRESHOLD, pointAt, distToWalk, AXIS } from "../src/world/rite-path.ts";
-import { riteStations, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt, torchbearer } from "../src/world/rite.ts";
+import { riteStations, roadLines, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt, torchbearer } from "../src/world/rite.ts";
+import { shadowSpecs } from "../src/world/rite-shadows.ts";
 import { riteFigures } from "../src/data/riteFigures.ts";
 import { civilizationStars } from "../src/data/civilizationStars.ts";
 test("the walk is a long road away from home that never doubles back", () => {
@@ -264,18 +265,34 @@ test("distance is time: the year runs from deep time to today along the road", (
   let previous=Infinity;
   for(let s=THRESHOLD;s<=riteLength;s+=2) { const y=yearsAgoAt(s); assert.ok(y<=previous+1e-6,"time only moves forward"); previous=y; }
   assert.equal(yearLabel(yearsAgoAt(riteLength),"en"),"Today");
-  assert.match(yearLabel(yearsAgoAt(standAt(1)),"zh"),/約 40,000 年前/);
-  assert.match(yearLabel(yearsAgoAt(standAt(3)),"en"),/^3,200 BCE$/);
-  assert.match(yearLabel(yearsAgoAt(standAt(5)),"zh"),/^西元 1543 年$/);
-  assert.match(yearLabel(yearsAgoAt(standAt(6)),"en"),/^1914 CE$/);
+  const at=(id:string)=>yearsAgoAt(standAt(riteStations.findIndex(s=>s.id===id)));
+  assert.match(yearLabel(at("painter"),"zh"),/約 40,000 年前/);
+  assert.match(yearLabel(at("ruler"),"en"),/^3,200 BCE$/);
+  assert.match(yearLabel(at("copernicus"),"zh"),/^西元 1543 年$/);
+  assert.match(yearLabel(at("eleanor"),"en"),/^1948 CE$/);
 });
-test("stations follow the demo's eight eras, in order, in both languages", () => {
-  assert.deepEqual(riteStations.map(s=>s.kind),["fire","hand","seed","tablet","axial","heavens","ash","you"]);
-  assert.deepEqual(riteStations.map(s=>s.s),stationMeters);
+test("the road is lined with memorials at uneven distances: relics of the nameless, then the gravestones of the named, then your own stone", () => {
+  assert.equal(riteStations[0].kind,"fire");
+  assert.equal(riteStations[riteStations.length-1].kind,"you");
+  assert.equal(riteStations[riteStations.length-1].s,riteLength);
+  const memorials=riteStations.slice(1,-1);
+  assert.ok(memorials.length>=20,"many memorials, not a handful of stations");
+  assert.ok(memorials.filter(m=>m.kind==="relic").length>=8&&memorials.filter(m=>m.kind==="stone").length>=10);
+  assert.ok(memorials.slice(0,5).every(m=>m.kind==="relic"),"the oldest ages are remembered by their relics");
+  const gaps=riteStations.slice(1).map((m,i)=>m.s-riteStations[i].s);
+  assert.ok(gaps.every(g=>g>6),"each memorial is a few steps from the last");
+  assert.ok(Math.max(...gaps)>3*Math.min(...gaps),"spacing is uneven, not a row");
+  assert.ok(memorials.every(m=>m.s>THRESHOLD+10&&m.s<riteLength-20));
   for(const station of riteStations) {
-    for(const text of [station.number,station.title,station.era,station.act,station.after,...station.lines,...station.passing]) assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
+    for(const text of [station.act,...(station.title?[station.title]:[]),...(station.after?[station.after]:[]),...station.lines]) assert.ok(text.en.length>0&&text.zh.length>0,"every line exists in English and Traditional Chinese");
     for(const ref of station.figures) for(const lang of ["en","zh"] as const) assert.ok(resolveFigure(ref,lang)?.name,`${ref} resolves`);
+    for(const id of [...station.shadows,...station.crowd]) assert.ok(id in shadowSpecs,`${id} has a shadow`);
+    assert.ok(station.shadows.length+station.crowd.length<=8,"the lantern holds eight shadows");
+    if(station.kind==="relic") assert.ok(station.title&&station.after,"a relic has a name and a line");
+    if(station.kind==="stone") for(const lang of ["en","zh"] as const) assert.ok(resolveFigure(station.id,lang)?.quote,`${station.id}'s stone has words to carve`);
   }
+  for(let i=1;i<roadLines.length;i++) assert.ok(roadLines[i].at>roadLines[i-1].at);
+  for(const line of roadLines) assert.ok(!riteStations.some(m=>Math.abs(m.s-line.at)<3),"history is heard between memorials, not at them");
 });
 test("walk-only figures are not duplicates of the shared civilization records", () => {
   const civ=new Set(civilizationStars.map(s=>s.name.toLowerCase()));

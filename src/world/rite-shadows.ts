@@ -1,8 +1,8 @@
 import * as THREE from "three";
 
-/** The lantern: when a station's act is done, your fire lights a ring of mist around you, and the people of that
- * age turn slowly around you on it as shadows, the way figures turn on a 走馬燈. Each sage's shadow appears when
- * their star is lit; the anonymous people of the age are there from the start.
+/** The lantern: when you honour a memorial, your fire lights a ring of mist around you, and the people it stands for
+ * turn slowly around you on it as shadows, the way figures turn on a 走馬燈: those it remembers come out of the mist in
+ * front of you, the anonymous people of their age turn around the rest of the ring.
  *
  * Shadows are drawn here as shadow-puppet silhouettes. Any of them can be replaced by an image at
  * /images/rite/shadows/<id>.png (black figure on white, or on transparency), see docs/RITE_ART.md. */
@@ -50,17 +50,13 @@ export const shadowSpecs: Record<string, Spec> = {
   stargazer: { size: .6, robe: .5, arms: [[8, 6], [150, 0]], head: { hat: "short" }, props: ["point"] },
   refugee: { pose: "walk", lean: 16, robe: .8, arms: [[-6, 10], [40, 50]], legs: [[-18, 12], [20, 4]], head: { hat: "long" }, props: ["bundle"], child: { size: .5, x: 70, pose: "walk", robe: .5, arms: [[60, 20], [10, 10]], legs: [[-18, 10], [20, 4]], head: { hat: "short" } } },
   planter: { pose: "kneel", lean: 26, robe: .5, arms: [[70, 20], [80, 14]], head: { hat: "short" }, props: ["sapling"] },
+  storyteller: { pose: "sit", robe: .6, arms: [[120, 20], [110, 30]], head: { hat: "long", beard: "long" } },
+  shaman: { pose: "walk", robe: .6, arms: [[150, 20], [140, 30]], legs: [[-10, 40], [20, 4]], head: { hat: "long" } },
+  sewer: { pose: "sit", robe: .9, arms: [[50, 40], [80, 30]], head: { hat: "bun" } },
+  king: { robe: 1, flare: 110, arms: [[20, 10], [60, 40]], head: { hat: "crown", beard: "long" }, props: ["staff"] },
+  soldier: { pose: "walk", robe: .4, arms: [[30, 40], [70, 70]], legs: [[-24, 16], [26, 6]], head: { hat: "cap" }, props: ["spear"] },
+  you: { arms: [[6, 10], [168, 0]], head: { hat: "short" }, props: ["point"] },
 };
-/** Who turns on the lantern at each station: its sages first, then the anonymous people of the age. */
-export const lanternCrowd: Record<string, string[]> = {
-  hand: ["hunter", "mother", "hunter", "mother", "hunter"],
-  seed: ["harvester", "carrier", "harvester", "carrier", "harvester"],
-  tablet: ["builder", "scribe", "carrier", "builder", "scribe"],
-  axial: ["disciple", "traveller"],
-  heavens: ["navigator", "stargazer"],
-  ash: ["refugee", "planter", "refugee", "planter"],
-};
-
 function drawFigure(g: CanvasRenderingContext2D, spec: Spec) {
   const s = spec.size ?? 1, x0 = spec.x ?? 112, pose = spec.pose ?? "stand", rad = (d: number) => d * Math.PI / 180;
   const legLen = 190 * s, torso = 132 * s, headR = 25 * s, up = 70 * s, fore = 62 * s;

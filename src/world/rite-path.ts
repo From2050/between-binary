@@ -97,7 +97,8 @@ export function corridorGrid() {
 }
 export function corridorLift(x: number, z: number) {
   const edge = Math.max(Math.abs(x), Math.abs(z));
-  return -.6 * sm(28, 34, distToWalk(x, z, 60)) - (edge < 51.5 ? .03 : 0);
+  // under the clearing's own finer ground, sink far enough that the coarser rows never show through it
+  return -.6 * sm(28, 34, distToWalk(x, z, 60)) - (edge < 51.5 ? .03 + .14 * (1 - sm(45, 49.5, edge)) : 0);
 }
 
 /** The burnt country around the sixth station, darker underfoot (0 … 1). */

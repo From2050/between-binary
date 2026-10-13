@@ -14,8 +14,11 @@ export function addRoadside(o: {
   scene: THREE.Scene; height: (x: number, z: number) => number; wind: ReturnType<typeof createWind>; small: boolean;
   forest?: THREE.Group; rock?: Source; grass?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial };
   ferns?: Source[]; grasses?: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }[];
+  /** places to leave open: [x, z, radius] (the memorials) */
+  clear?: [number, number, number][];
 }) {
   const { scene, height, wind, small } = o;
+  const open = (x: number, z: number, k = 1) => !(o.clear ?? []).some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r * k);
   const group = new THREE.Group(); group.name = "The road's country"; scene.add(group);
   const chunks: { mesh: THREE.InstancedMesh; range: number }[] = [];
   const m = new THREE.Object3D();
@@ -97,7 +100,7 @@ export function addRoadside(o: {
       if (random() > zone) continue;
       const off = 1.05 + Math.pow(random(), 1.6) * 20, [bx, bz] = besideRoad(Math.min(s + random() * .35, riteLength), side, off), x = bx + (random() - .5) * .6, z = bz + (random() - .5) * .6;
       if (s > riteLength && off < 6) continue;
-      if (distToWalk(x, z) < .95 || Math.hypot(x - fx, z - fz) < 27) continue;
+      if (distToWalk(x, z) < .95 || Math.hypot(x - fx, z - fz) < 27 || !open(x, z, .45)) continue;
       const patch = .55 + .45 * Math.sin(x * .21 + Math.sin(z * .17) * 2) * Math.sin(z * .23 + x * .07);
       if (random() > .35 + patch * .65) continue;
       const k = pick(), size = .75 + random() * .75;
@@ -131,7 +134,7 @@ export function addRoadside(o: {
       for (let k = 0; k < many; k++) {
         if (random() > .45) continue;
         const off = 2 + Math.pow(random(), 1.2) * 30, [x, z] = besideRoad(Math.min(s, riteLength), random() > .5 ? 1 : -1, off);
-        if (distToWalk(x, z) < 1.8) continue;
+        if (distToWalk(x, z) < 1.8 || !open(x, z)) continue;
         const size = .25 + Math.pow(random(), 2) * (s > zones.ascent[0] ? 1.9 : 1.2);
         placements.push({ x, z, s, scale: [size, size * (.5 + random() * .4), size * (.8 + random() * .4)], ry: random() * 6.28, sink: size * .12 });
       }

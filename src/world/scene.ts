@@ -237,7 +237,9 @@ export async function initWorld() {
   // The walk's road keeps the clearing's detail all the way to the far ridge.
   { const corridor=corridorGrid(),geo=new THREE.BufferGeometry();
     geo.setAttribute("position",new THREE.BufferAttribute(corridor.positions,3));geo.setIndex(corridor.index);
-    makeGround(geo,(x,z)=>!nearby(x,z),corridorLift); }
+    // The road's rows run at a slant, so they cannot meet the clearing's square edge exactly: they reach 5 m under it
+    // instead (corridorLift sinks them there), and no gap opens along the seam.
+    makeGround(geo,(x,z)=>!(Math.abs(x)<45&&Math.abs(z)<45),corridorLift); }
   // Grids meet exactly at +/-50 and +/-700, without z-fighting.
   makeGround(plane(1400,1400,280,280),(x,z)=>!nearby(x,z)&&distToWalk(x,z,60)>CORRIDOR-7);
   makeGround(plane(3000,3000,240,240),(x,z)=>Math.abs(x)>=700||Math.abs(z)>=700);
