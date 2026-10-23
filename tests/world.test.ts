@@ -296,6 +296,7 @@ test("the road is lined with memorials at uneven distances: relics of the namele
   // the road stops you only where it matters; the rest you honour in passing, and alike things together
   assert.ok(riteStops.length<=11,"few stops, so the walk does not drag");
   assert.ok(memorials.filter(m=>m.pass).length>=5,"lesser memorials are walked past");
+  assert.ok(memorials.filter(m=>m.pass).every(m=>m.figures.length===0),"what you walk past lights no star: every light that rises is one you saw rise");
   for(let i=1;i<riteStops.length;i++) assert.ok(riteStops[i].stand-riteStops[i-1].stand>15,"stops are far apart");
   for(const [id,g] of Object.entries(riteGroups)) { const members=riteStations.filter(m=>m.group===id); assert.ok(members.length>=2); assert.ok(members.every(m=>m.kind==="stone"&&m.s===g.s));
     for(let i=1;i<members.length;i++) assert.ok(members[i].yearsAgo<=members[i-1].yearsAgo,"a group is honoured in the order of history"); }
@@ -305,7 +306,7 @@ test("the road is lined with memorials at uneven distances: relics of the namele
 test("walk-only figures are not duplicates of the shared civilization records", () => {
   const civ=new Set(civilizationStars.map(s=>s.name.toLowerCase()));
   for(const figure of riteFigures) assert.ok(!civ.has(figure.name.en.toLowerCase()),`${figure.name.en} lives in one record only`);
-  const used=new Set(riteStations.flatMap(s=>s.figures));
+  const used=new Set([...riteStations.flatMap(s=>s.figures),...riteStations.map(s=>s.id)]);
   for(const figure of riteFigures) assert.ok(used.has(figure.id),`${figure.id} appears on the walk`);
 });
 test("everyone met on the walk is one star of the Torchbearer, and the figure is one connected shape", () => {

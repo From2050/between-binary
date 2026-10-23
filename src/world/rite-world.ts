@@ -259,14 +259,14 @@ export function createRite(o: Options) {
     nm.group.rotation.y = (L.i % 3 - 1) * .05; L.group.add(nm.group);
     const hit = hitbox(new THREE.BoxGeometry(nm.hit.x, nm.hit.y, nm.hit.z), "gate", L.i); hit.position.y = nm.hit.y / 2; L.group.add(hit);
     L.top = nm.top; L.focus.y = L.pos.y + nm.focus; L.ghost.set(...nm.ghost); L.wide = nm.hit.x / 2; carvings.push(...nm.paint);
-    lampSpots.push({ L, local: nm.lamp, flame: .62, pool: .8, bowl: true, light: .45 });
+    if (!L.st.pass) lampSpots.push({ L, local: nm.lamp, flame: .62, pool: .8, bowl: true, light: .45 });
   }
   // the relics of the ages without names
   const relicTitle = (L: Live, y: number) => { const title = textPlane(2.3, .65); title.mesh.position.copy(L.pos).add(new THREE.Vector3(0, y, 0)); title.mesh.renderOrder = 3; root.add(title.mesh); L.title = title; };
   const addRelic = (id: string, relic: Relic) => {
     const L = byId(id); L.group.add(relic.group); L.focus.y = L.pos.y + relic.focus; L.top = relic.hit.y;
     const hit = hitbox(new THREE.BoxGeometry(relic.hit.x, relic.hit.y, relic.hit.z), "gate", L.i); hit.position.y = relic.hit.y / 2; L.group.add(hit);
-    lampSpots.push({ L, local: relic.lamp, flame: relic.flame, pool: relic.flame > 1 ? 1.5 : .85, bowl: relic.flame <= 1 });
+    if (!L.st.pass) lampSpots.push({ L, local: relic.lamp, flame: relic.flame, pool: relic.flame > 1 ? 1.5 : .85, bowl: relic.flame <= 1 });
     L.wide = relic.hit.x / 2; if (!L.st.pass) relicTitle(L, Math.max(2.3, relic.hit.y + .45));
   };
   /** where their people stand, in each relic's frame: beside it or within it, never hidden behind it */
@@ -750,10 +750,6 @@ export function createRite(o: Options) {
     later(5.8, () => { const head = apparitions.release()[0]; if (k >= 0) later(.95, () => ascend(head ?? L.pos.clone().add(new THREE.Vector3(0, L.top + .2, 0)), k)); });
   }
   /** A memorial you walk past: its fire brightens as your torch goes by, the faint figure beside it lifts away, and its light goes up. */
-  function passBy(L: Live) {
-    if (L.done) return; L.done = true; L.doneAt = time;
-    const k = starOf(L); if (k >= 0) { stars[k].metAt = time; rebuildConstellation(); }
-  }
   /** Your name is on your stone; now your star rises from it, the shared sky wakes, and you look back. */
   function startFinale() {
     if (state !== "walk") return;
@@ -768,7 +764,7 @@ export function createRite(o: Options) {
   }
   function begin() {
     sound.wake(); sound.hush(); startCard.hidden = true; name = (nameInput.value || "").trim().slice(0, 10);
-    if (index === 0 || live.every(L => L.done)) resetWalk();
+    if (index === 0 || stops.every(S => S.members.every(m => m.done))) resetWalk();
     state = "walk"; panel.hidden = false; leaveBtn.hidden = false; el("wayfinding").hidden = true; api?.clearInfo(); homeBtn.hidden = true;
     approachFrom.copy(camera.position); approach = 0; torch.visible = true; phase = "walk"; phaseAt = time; speed = 0;
   }
@@ -935,8 +931,6 @@ export function createRite(o: Options) {
           passed.add(key); if (s - rl.at > 30) continue; setLine(say(rl.text, lang, name)); lineUntil = t + 5.8; break; }
         if (t > lineUntil && lineUntil > 0) { setLine(""); lineUntil = 0; }
       }
-      // ── memorials walked past are part of the country: only their stars remember you went by
-      if (state === "walk" && live[0].done) for (const P of passers) if (!P.done && P.s - s < .6) passBy(P);
       // ── at a stop: what is said there, then the act
       if (state === "walk" && phase === "narrate") { const k = Math.floor((t - phaseAt) / 4.4);
         if (k < stopLines.length) setLine((t - phaseAt) % 4.4 < 3.95 ? say(stopLines[k], lang, name) : "");
@@ -1002,18 +996,24 @@ export function createRite(o: Options) {
       const journeying = state !== "idle" && state !== "intro";
       apparitions.update(dt, camera, fl * (1 - g * .4));
       // ── their light rising into the sky
+      // the camera follows their light; when several rise together, it follows them all
+      const ascentSum = new THREE.Vector3(); let ascentN = 0;
       for (let k = ascents.length - 1; k >= 0; k--) {
         const a = ascents[k], u = Math.min(1, (t - a.t0) / a.dur), lift = a.from.clone().add(new THREE.Vector3(0, 3.5, 0)), S = starWorld(a.k);
         let p: THREE.Vector3;
         if (u < .36) { const v = sm(0, 1, u / .36); p = a.from.clone().lerp(lift, v); p.x += Math.sin(t * 2.6) * .08 * v; p.z += Math.cos(t * 2.1) * .08 * v; }
         else { const v = (u - .36) / .64; p = lift.clone().lerp(S, v * v * v); }
-        a.sprite.position.copy(p); ascentAt.copy(p);
+        a.sprite.position.copy(p); ascentSum.add(p); ascentN++;
         const d = p.distanceTo(camera.position); a.sprite.scale.setScalar(Math.max(.3, d * THREE.MathUtils.lerp(.045, .016, u)) * (1 + .12 * Math.sin(t * 9))); a.sprite.material.opacity = Math.min(1, u * 8);
         // the tail: points along the way it has come, closer together than the frames are apart
         const prev = a.path[0]; if (prev) for (let j = 1; j <= 3; j++) a.path.unshift(prev.clone().lerp(p, j / 3)); else a.path.unshift(p.clone()); while (a.path.length > 70) a.path.pop();
-        a.tail.forEach((sp, j) => { const q = a.path[Math.min(a.path.length - 1, (j + 1) * 3)]; sp.position.copy(q); const f = 1 - j / a.tail.length; sp.scale.setScalar(Math.max(.18, q.distanceTo(camera.position) * .035 * f)); sp.material.opacity = .32 * f * f * Math.min(1, u * 6); });
+        a.tail.forEach((sp, j) => { const q = a.path[Math.min(a.path.length - 1, (j + 1) * 3)], before = a.path[Math.min(a.path.length - 1, j * 3)]; sp.position.copy(q); const f = 1 - j / a.tail.length, size = Math.max(.18, q.distanceTo(camera.position) * .035 * f);
+          // when it flies fast the points of its tail spread apart; let those fade, so the tail never breaks into beads
+          const gap = q.distanceTo(before), joined = Math.min(1, size * .9 / Math.max(1e-4, gap));
+          sp.scale.setScalar(size); sp.material.opacity = .32 * f * f * Math.min(1, u * 6) * joined * joined; });
         if (u >= 1) { root.remove(a.sprite); a.sprite.material.dispose(); a.tail.forEach(sp => { root.remove(sp); sp.material.dispose(); }); ascents.splice(k, 1); wake(a.k, false); }
       }
+      if (ascentN) ascentAt.copy(ascentSum.multiplyScalar(1 / ascentN));
       // ── the walk's stars
       if (state !== "finale") figureGlow += ((mineRemembered || youL.done ? .7 : 0) - figureGlow) * Math.min(1, dt * .5);
       stars.forEach((x, i) => {

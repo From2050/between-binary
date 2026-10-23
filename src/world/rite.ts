@@ -35,7 +35,7 @@ export type RiteStation = {
   /** shadows that come out of the mist in front of you, and the people of the age turning around the rest of the ring */
   shadows: string[];
   crowd: string[];
-  /** walked past: it greets you as you go by, and its light rises without your stopping */
+  /** walked past: part of the country you cross; it lights no star and keeps no fire, so nothing on it asks to be stopped for */
   pass?: boolean;
   /** honoured together with the others of its group, at one place (`riteGroups`) */
   group?: string;
@@ -73,7 +73,7 @@ export const riteStations: RiteStation[] = [
     n("Fire made the nights shorter, and the stories longer.", "火讓夜晚變短，讓故事變長。"), ["storyteller"], ["mother", "hunter", "mother"]),
   { ...relic("hunt", 69, 1, 2.6, 70000, n("Tusks and a spear", "象牙與長矛"),
     [n("With stone points on wooden shafts, they followed the herds.", "他們把石尖綁上木桿，追著獸群走。")],
-    n("They walked out of Africa, across the ice, onto every continent.", "他們走出非洲，走過冰原，走到每一片大陸。"), ["hunter"], ["hunter", "mother", "hunter"]), pass: true },
+    n("They walked out of Africa, across the ice, onto every continent.", "他們走出非洲，走過冰原，走到每一片大陸。"), ["hunter"], ["hunter", "mother", "hunter"]), pass: true, figures: [] },
   relic("painter", 100, 1, 3.4, 40000, n("Hands on the rock", "岩壁上的手"),
     [n("Forty thousand years ago, someone pressed a hand here and blew red ochre over it.", "四萬年前，有人把手按在這裡，吹上赭紅的顏料。"),
       n("It meant: I was here.", "那是在說：我曾在這裡。")],
@@ -81,7 +81,7 @@ export const riteStations: RiteStation[] = [
     n("Press your hand to the rock, and hold", "把你的手按在岩石上，按住"), "press"),
   { ...relic("needle", 126, -1, 2.3, 30000, n("A bone needle", "骨針"),
     [n("A needle of bone, a thread of sinew: clothes that fit, against the cold of the ice.", "一根骨針，一條獸筋：合身的衣服，擋住冰河的寒冷。")],
-    n("They sang for their dead, and buried them with flowers.", "他們為死去的人唱歌，用花把他們埋葬。"), ["sewer"], ["mother", "hunter", "storyteller"]), pass: true },
+    n("They sang for their dead, and buried them with flowers.", "他們為死去的人唱歌，用花把他們埋葬。"), ["sewer"], ["mother", "hunter", "storyteller"]), pass: true, figures: [] },
   // ─── the first fields and towns ───
   relic("farmer", 172, -1, 1.9, 12000, n("Seed", "種子"),
     [n("Twelve thousand years ago, people buried seeds in the ground, and then they waited.", "一萬兩千年前，人們把種子埋進土裡，然後——等待。"),
@@ -90,24 +90,24 @@ export const riteStations: RiteStation[] = [
     n("Kneel, and hold the seed in the earth", "蹲下，把種子按進土裡"), "kneel"),
   { ...relic("builder", 203, 1, 3, bce(7000), n("A doorway", "一道門"),
     [n("Where there was a harvest, there were villages. Brick by brick, people raised walls.", "有了收成，就有了村莊。一塊磚一塊磚，人們砌起了牆。")],
-    n("A door: on one side, home; on the other, the world.", "一道門：一邊是家，一邊是世界。"), ["builder"], ["carrier", "builder", "harvester"]), pass: true },
+    n("A door: on one side, home; on the other, the world.", "一道門：一邊是家，一邊是世界。"), ["builder"], ["carrier", "builder", "harvester"]), pass: true, figures: [] },
   { ...relic("ruler", 226, -1, 2.6, bce(3200), n("An empty throne", "空的王座"),
     [n("The cities had too much to remember. So there were kings, and there was writing.", "城市要記住的事，太多了。於是有了國王，有了文字。")],
-    n("For the first time, memory left the body.", "記憶，第一次離開了人的身體。"), ["king", "scribe"], ["scribe", "builder", "carrier"]), pass: true },
+    n("For the first time, memory left the body.", "記憶，第一次離開了人的身體。"), ["king", "scribe"], ["scribe", "builder", "carrier"]), pass: true, figures: [] },
   stone("enheduanna", 248, 1, bce(2285), ["scribe", "carrier", "builder"]),
   { ...relic("soldier", 271, -1, 2.8, bce(1300), n("A chariot wheel", "戰車的輪子"),
     [n("Beyond the walls, there were armies. Empires rose, and fell.", "城牆之外，有了軍隊。帝國興起，又倒下。")],
-    n("Where the wheels went, the grass grew back.", "車輪輾過的地方，草又長了回來。"), ["soldier"], ["soldier", "refugee", "soldier"]), pass: true },
+    n("Where the wheels went, the grass grew back.", "車輪輾過的地方，草又長了回來。"), ["soldier"], ["soldier", "refugee", "soldier"]), pass: true, figures: [] },
   // ─── the awakening: four who never met ───
   { ...stone("laozi", 322, -1, bce(530), ["traveller", "disciple"]), group: "axial" },
   { ...stone("confucius", 322, -1, bce(500), ["disciple", "traveller"]), group: "axial" },
   { ...stone("buddha", 322, -1, bce(450), ["disciple", "traveller"]), group: "axial" },
   { ...stone("socrates", 322, -1, bce(430), ["disciple", "traveller"]), group: "axial" },
   // ─── the heavens ───
-  { ...stone("zhangheng", 360, -1, ce(132), ["stargazer", "scribe"]), pass: true },
+  { ...stone("zhangheng", 360, -1, ce(132), ["stargazer", "scribe"]), pass: true, figures: [] },
   { ...relic("navigator", 381, 1, 2.6, ce(1522), n("An anchor", "船錨"),
     [n("Ships crossed every ocean. In 1522, one came home from the first voyage around the world.", "船越過了每一片海洋。1522 年，第一艘環繞世界一周的船回到了港口。")],
-    n("From then on, the map had no edge.", "從此，地圖沒有了邊。"), ["navigator"], ["navigator", "stargazer", "traveller"]), pass: true },
+    n("From then on, the map had no edge.", "從此，地圖沒有了邊。"), ["navigator"], ["navigator", "stargazer", "traveller"]), pass: true, figures: [] },
   { ...stone("copernicus", 404, 1, ce(1543), ["stargazer", "navigator"]), group: "heavens" },
   { ...stone("galileo", 404, 1, ce(1610), ["stargazer", "navigator"]), group: "heavens" },
   { ...stone("newton", 404, 1, ce(1687), ["stargazer", "navigator"]), group: "heavens" },
@@ -206,27 +206,23 @@ export const riteUi = {
   anyone: n("Someone who carries the fire", "一個傳火的人"),
 } as const;
 
-/** The constellation the walk draws: everyone you honoured, joined into one figure striding with a fire held high.
- * The nameless ages are its legs (deep time the one, the first fields and cities the other) meeting at the first
- * author known by name; the philosophers are its body and head, the astronomers and sailors its arms, the
- * survivors and authors of human rights the hand that holds the fire, and you the flame. [degrees right, degrees up]
- * in a plane facing the viewer, centred 40° above the horizon. */
+/** The constellation the walk draws: everyone you stopped to honour, joined into one figure striding with a fire
+ * held high. Deep time and the first fields are its legs, one bent at the hands on the rock, meeting at Enheduanna,
+ * the first author known by name; the philosophers are its body and head; Copernicus is the arm swung back, and the
+ * others who looked at the heavens the arm that reaches up; the survivors of the wars and the authors of human
+ * rights the hand that holds the fire; and you the flame. [degrees right, degrees up] in a plane facing the viewer,
+ * centred 40° above the horizon. */
 export const torchbearer = {
   name: n("The Torchbearer", "持火者"),
   points: {
-    hearth: [-9, 12], hunt: [-7.6, 17], painter: [-5.4, 21.8], needle: [-2.8, 26.4],
-    farmer: [9, 12], builder: [7.4, 17.2], ruler: [5, 22], soldier: [2.6, 26.6], enheduanna: [0, 30],
-    laozi: [.6, 35], confucius: [1.2, 39.8], buddha: [2.6, 44.2], socrates: [4.4, 50.6],
-    zhangheng: [-3.6, 40.2], navigator: [-6.4, 36.6], copernicus: [-8.6, 32.6],
-    galileo: [7.4, 46.4], newton: [9.6, 50.6], curie: [11.2, 54.4], war: [12.2, 57.6],
-    eleanor: [12.4, 60.8], pcchang: [14.8, 59.8], you: [14.2, 66.4],
+    hearth: [-8.2, 12], painter: [-4.8, 20.8], farmer: [8.4, 13], enheduanna: [0, 29.5],
+    laozi: [.8, 35.2], confucius: [1.7, 40.6], buddha: [2.9, 45.2], socrates: [4.3, 51.6],
+    copernicus: [-5.6, 37.4], galileo: [7.3, 47.2], newton: [9.7, 51.2], curie: [11.5, 55.2], war: [12.4, 58.4],
+    eleanor: [12.4, 61.4], pcchang: [14.9, 60.4], you: [14.2, 67],
   } as Record<string, [number, number]>,
-  edges: [["hearth", "hunt"], ["hunt", "painter"], ["painter", "needle"], ["needle", "enheduanna"],
-    ["farmer", "builder"], ["builder", "ruler"], ["ruler", "soldier"], ["soldier", "enheduanna"],
-    ["enheduanna", "laozi"], ["laozi", "confucius"], ["confucius", "buddha"], ["buddha", "socrates"],
-    ["buddha", "zhangheng"], ["zhangheng", "navigator"], ["navigator", "copernicus"],
-    ["buddha", "galileo"], ["galileo", "newton"], ["newton", "curie"], ["curie", "war"],
-    ["war", "eleanor"], ["war", "pcchang"], ["eleanor", "pcchang"], ["eleanor", "you"], ["pcchang", "you"]] as [string, string][],
+  edges: [["hearth", "painter"], ["painter", "enheduanna"], ["farmer", "enheduanna"], ["enheduanna", "laozi"], ["laozi", "confucius"],
+    ["confucius", "buddha"], ["buddha", "socrates"], ["buddha", "copernicus"], ["buddha", "galileo"], ["galileo", "newton"], ["newton", "curie"],
+    ["curie", "war"], ["war", "eleanor"], ["war", "pcchang"], ["eleanor", "pcchang"], ["eleanor", "you"], ["pcchang", "you"]] as [string, string][],
 };
 
 export type ResolvedFigure = { name: string; life: string; text: string; quote?: string; href?: string };
