@@ -1,8 +1,6 @@
-import * as THREE from "three";
 
-/** The lantern: when you honour a memorial, your fire lights a ring of mist around you, and the people it stands for
- * turn slowly around you on it as shadows, the way figures turn on a 走馬燈: those it remembers come out of the mist in
- * front of you, the anonymous people of their age turn around the rest of the ring.
+/** The people of the walk as silhouettes: shadow-puppet figures (皮影) cut from black on white. rite-apparitions.ts
+ * turns them into figures of firelight and embers.
  *
  * Shadows are drawn here as shadow-puppet silhouettes. Any of them can be replaced by an image at
  * /images/rite/shadows/<id>.png (black figure on white, or on transparency), see docs/RITE_ART.md. */
@@ -135,7 +133,7 @@ function drawFigure(g: CanvasRenderingContext2D, spec: Spec) {
   if (props.has("flask")) { g.beginPath(); g.arc(front.x + 6 * s, front.y - 6 * s, 20 * s, 0, Math.PI * 2); g.fill(); g.fillRect(front.x - 1 * s, front.y - 46 * s, 14 * s, 28 * s); }
   if (props.has("document")) { g.save(); g.translate((front.x + back.x) / 2, (front.y + back.y) / 2 - 36 * s); g.rotate(.06); g.fillRect(-46 * s, -58 * s, 92 * s, 116 * s); g.restore(); }
   if (spec.child) drawFigure(g, spec.child);
-  // light that belongs to the scene: cut through the shadow so the lantern shines through it
+  // light that belongs to the scene: cut out of the shadow, as a puppet maker would
   g.save(); g.globalCompositeOperation = "destination-out";
   if (props.has("flask")) { const gr = g.createRadialGradient(front.x + 6 * s, front.y - 6 * s, 0, front.x + 6 * s, front.y - 6 * s, 26 * s); gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(front.x - 30 * s, front.y - 40 * s, 72 * s, 72 * s); }
   if (props.has("prism")) { g.lineWidth = 3 * s; g.beginPath(); g.moveTo(front.x - 100 * s, front.y - 40 * s); g.lineTo(front.x - 6 * s, front.y - 10 * s); g.stroke(); for (let k = 0; k < 5; k++) { g.lineWidth = 2.4 * s; g.beginPath(); g.moveTo(front.x + 4 * s, front.y - 8 * s); g.lineTo(front.x + 150 * s, front.y - 30 * s + k * 12 * s); g.stroke(); } }
@@ -163,88 +161,13 @@ export async function loadShadowArt(ids: string[]) {
   })));
 }
 
-const SLOTS = 8;
-export function createLantern(o: { scene: THREE.Scene; height: (x: number, z: number) => number; small: boolean }) {
-  const canvas = document.createElement("canvas"); canvas.width = CW * SLOTS; canvas.height = CH;
-  const atlas = new THREE.CanvasTexture(canvas); atlas.anisotropy = 4;
-  const RADIUS = 7.6, HEIGHT = 7.5, FIG = 6.2; // metres: ring, mist, and the full height of a shadow cell
-  const figs = Array.from({ length: SLOTS }, () => new THREE.Vector4(0, 0, 1, 0)); // angle, alpha, scale, mirror
-  const uniforms = { uAtlas: { value: atlas }, uFig: { value: figs }, uTime: { value: 0 }, uRise: { value: 0 }, uLevel: { value: 0 }, uLift: { value: 0 }, uFlicker: { value: 1 } };
-  const material = new THREE.ShaderMaterial({ uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false,
-    vertexShader: `varying vec3 vLocal; void main(){ vLocal = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-    fragmentShader: `
-      uniform sampler2D uAtlas; uniform vec4 uFig[${SLOTS}]; uniform float uTime, uRise, uLevel, uLift, uFlicker; varying vec3 vLocal;
-      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
-      float fbm(vec2 p){ float v = 0., a = .5; for (int k = 0; k < 4; k++) { v += a * n2(p); p *= 2.07; a *= .5; } return v; }
-      void main(){
-        float th = atan(vLocal.z, vLocal.x), y = vLocal.y + ${(HEIGHT / 2).toFixed(2)};
-        float mask = 0., rim = 0.;
-        for (int i = 0; i < ${SLOTS}; i++) {
-          vec4 f = uFig[i]; if (f.y < .002) continue;
-          float d = mod(th - f.x + 3.14159265, 6.2831853) - 3.14159265, wa = ${(FIG / 2).toFixed(2)} * f.z / ${RADIUS.toFixed(2)};
-          if (abs(d) > wa * .5) continue;
-          vec2 uv = vec2(d / wa + .5, (y + .25) / (${FIG.toFixed(2)} * f.z)); if (f.w > .5) uv.x = 1. - uv.x;
-          if (uv.y > 1.) continue;
-          vec2 a = vec2((float(i) + clamp(uv.x, .01, .99)) / ${SLOTS}., uv.y);
-          float m = texture2D(uAtlas, a).a;
-          float b = (texture2D(uAtlas, a + vec2(.0018, 0.)).a + texture2D(uAtlas, a - vec2(.0018, 0.)).a + texture2D(uAtlas, a + vec2(0., .0036)).a + texture2D(uAtlas, a - vec2(0., .0036)).a) * .25;
-          float edge = smoothstep(0., .03, uv.x) * smoothstep(1., .97, uv.x); // never show the cell's own border
-          mask = max(mask, m * f.y * edge); rim = max(rim, max(0., b - m) * f.y * edge);
-        }
-        // a warm mist, lit from inside by your fire, rising from the ground and drifting upward
-        float drift = fbm(vec2(th * 2.6 + uTime * .03, y * .42 - uTime * .22)), fine = fbm(vec2(th * 9. - uTime * .05, y * 1.6 - uTime * .5));
-        float wisps = fbm(vec2(th * 16. + sin(y * .5 + uTime * .2) * .4, y * .35 - uTime * .3)); // tall drifting streaks, gaps between them
-        float profile = smoothstep(-.2, 1.1, y) * (1. - smoothstep(${(HEIGHT * .5).toFixed(2)}, ${HEIGHT.toFixed(2)}, y - uLift));
-        float risen = 1. - smoothstep(uRise * ${HEIGHT.toFixed(2)} - 1.2, uRise * ${HEIGHT.toFixed(2)} + .3, y);
-        float light = uLevel * profile * risen * (.06 + 1.5 * pow(drift, 2.4) * (.45 + .9 * wisps)) * (.85 + .15 * fine) * uFlicker;
-        vec3 warm = mix(vec3(1., .5, .2), vec3(1., .78, .5), drift);
-        // the shadows are where the light is blocked; a thin edge of light rims them where the mist is lit behind
-        float behind = uLevel * profile * risen * (.35 + .65 * drift) * uFlicker;
-        vec3 col = warm * light * (1. - mask * .97) + vec3(1., .8, .55) * rim * behind * .5 + warm * behind * .05 * mask * fine;
-        gl_FragColor = vec4(col, 1.);
-      }` });
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(RADIUS, RADIUS, HEIGHT, o.small ? 64 : 112, 1, true), material);
-  ring.visible = false; ring.frustumCulled = false; ring.renderOrder = 2; o.scene.add(ring);
-  type Slot = { id: string; angle: number; target: number; alpha: number; scale: number; mirror: boolean; sage: boolean };
-  let slots: Slot[] = [], station = -1, shownAt = -1, endAt = Infinity, time = 0;
-  function paint() {
-    const g = canvas.getContext("2d")!; g.clearRect(0, 0, canvas.width, canvas.height);
-    slots.forEach((slot, i) => {
-      g.save(); g.translate(i * CW, 0); g.beginPath(); g.rect(0, 0, CW, CH); g.clip();
-      const art = overrides.get(slot.id); if (art) g.drawImage(art, 0, 0); else if (shadowSpecs[slot.id]) { if ("filter" in g) g.filter = "blur(3px)"; g.scale(CW / W, CH / H); drawFigure(g, shadowSpecs[slot.id]); }
-      g.restore();
-    });
-    atlas.needsUpdate = true;
-  }
-  return {
-    get station() { return station; },
-    /** raise the lantern around a point: the anonymous people at once, the sages hidden until their star is lit */
-    show(index: number, centre: THREE.Vector3, facing: number, sages: string[], crowd: string[]) {
-      station = index; shownAt = time; endAt = Infinity;
-      const ids = [...sages, ...crowd].slice(0, SLOTS), n = Math.max(6, ids.length);
-      slots = ids.map((id, k) => {
-        // the sages stand in front of you; the others are spread around the rest of the ring
-        const sage = k < sages.length, angle = sage ? facing + (k - (sages.length - 1) / 2) * (sages.length > 3 ? .5 : .62) : facing + Math.PI + ((k - sages.length) - (ids.length - sages.length - 1) / 2) * (Math.PI * 2 / n);
-        return { id, angle, target: sage ? 0 : .8, alpha: 0, scale: sage ? 1 : .86 + ((k * 37) % 10) / 70, mirror: !sage && k % 2 === 1, sage };
-      });
-      ring.position.set(centre.x, o.height(centre.x, centre.z) + HEIGHT / 2 - .35, centre.z); ring.visible = true; paint();
-    },
-    /** a sage's star has been lit: their shadow comes out of the mist */
-    reveal(id: string) { const slot = slots.find(x => x.id === id && x.sage); if (slot) slot.target = 1; },
-    /** begin to let the lantern go, after a while to watch it */
-    release(after: number) { endAt = Math.min(endAt, time + after); },
-    hide() { ring.visible = false; station = -1; slots = []; },
-    update(dt: number, flicker: number, camera: THREE.Camera) {
-      time += dt; uniforms.uTime.value = time; if (!ring.visible) return;
-      const age = time - shownAt, leaving = Math.max(0, time - endAt), away = Math.hypot(camera.position.x - ring.position.x, camera.position.z - ring.position.z);
-      uniforms.uRise.value = Math.min(1, age / 2.6);
-      uniforms.uLift.value = leaving * 2.2; // when it is over, the lantern rises and thins into the sky
-      uniforms.uLevel.value = Math.min(1, age / 1.5) * Math.max(0, 1 - leaving / 3.5) * Math.max(0, Math.min(1, (RADIUS * .85 - away) / 2)) * .55;
-      uniforms.uFlicker.value = flicker;
-      slots.forEach((slot, i) => { slot.alpha += (slot.target - slot.alpha) * Math.min(1, dt * (slot.sage ? .9 : .5)); slot.angle += dt * .055; figs[i].set(slot.angle, slot.alpha, slot.scale, slot.mirror ? 1 : 0); });
-      for (let i = slots.length; i < SLOTS; i++) figs[i].set(0, 0, 1, 0);
-      if (leaving > 3.6 || (away > RADIUS * 1.3 && age > 3)) this.hide();
-    },
-  };
+/** A shadow as a mask (alpha = the figure), CW × CH: its image if there is one, otherwise the drawn silhouette. */
+const drawn = new Map<string, HTMLCanvasElement>();
+export function shadowCanvas(id: string): HTMLCanvasElement | null {
+  const art = overrides.get(id); if (art) return art;
+  if (!shadowSpecs[id]) return null;
+  let c = drawn.get(id);
+  if (!c) { c = document.createElement("canvas"); c.width = CW; c.height = CH; const g = c.getContext("2d")!; if ("filter" in g) g.filter = "blur(2px)"; g.scale(CW / W, CH / H); drawFigure(g, shadowSpecs[id]); drawn.set(id, c); }
+  return c;
 }
+export const SHADOW_ASPECT = CW / CH;
