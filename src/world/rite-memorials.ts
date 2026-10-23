@@ -226,3 +226,27 @@ export function anchor(): Relic {
   a.position.set(0, -.55, 0); a.rotation.set(.1, .5, .42); group.add(a);
   return { group, lamp: new THREE.Vector3(-.25, .02, .55), flame: .75, focus: 1, hit: new THREE.Vector3(2, 2.4, 1.2) };
 }
+
+/** A small bunch of wild flowers left by someone who came before you: thin stems, a few leaves, five-petalled heads.
+ * Vertex-coloured, so one geometry per colour serves every memorial. */
+export function flowerBunch(petal: [number, number, number], seed: number) {
+  const r = seeded(seed), pos: number[] = [], col: number[] = [], idx: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[], ca: number[], cb = ca) => { const n = pos.length / 3; pos.push(...a, ...b, ...c, ...d); col.push(...ca, ...ca, ...cb, ...cb); idx.push(n, n + 1, n + 2, n + 1, n + 3, n + 2); };
+  const stem = [.28, .4, .2], leaf = [.32, .46, .24], heart = [.95, .78, .3];
+  for (let k = 0; k < 7; k++) {
+    const h = .16 + r() * .2, lean = .25 + r() * .35, a = r() * Math.PI * 2, tx = Math.cos(a) * lean * h, tz = Math.sin(a) * lean * h, top = [tx, h, tz];
+    for (const [ax, az] of [[.004, 0], [0, .004]]) quad([-ax, 0, -az], [ax, 0, az], [tx - ax, h, tz - az], [tx + ax, h, tz + az], stem);
+    if (k % 2 === 0) { const ly = h * (.3 + r() * .3), lx = tx * ly / h, lz = tz * ly / h, la = a + (r() - .5) * 2; quad([lx, ly, lz], [lx, ly + .012, lz], [lx + Math.cos(la) * .06, ly + .03, lz + Math.sin(la) * .06], [lx + Math.cos(la) * .05, ly + .05, lz + Math.sin(la) * .05], leaf); }
+    // the head: five petals round a heart, facing up and a little outward
+    const size = .018 + r() * .014, n = pos.length / 3, tilt = .5;
+    pos.push(...top); col.push(...heart);
+    for (let j = 0; j <= 10; j++) { const b = j / 10 * Math.PI * 2, rr = size * (j % 2 ? .45 : 1), x = Math.cos(b) * rr, z = Math.sin(b) * rr;
+      pos.push(top[0] + x + Math.cos(a) * rr * tilt * .5, top[1] + (Math.cos(b - a)) * rr * tilt * .4, top[2] + z + Math.sin(a) * rr * tilt * .5); col.push(...petal); }
+    for (let j = 0; j < 10; j++) idx.push(n, n + 1 + j, n + 2 + j);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+export const flowerMaterial = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, side: THREE.DoubleSide });
+/** a smooth pebble, set on a gravestone the way visitors leave one */
+export const pebbleGeometry = () => { const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) * .55); g.computeVertexNormals(); return g; };

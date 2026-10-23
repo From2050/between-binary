@@ -215,7 +215,7 @@ test("reduced motion keeps a readable static title and never restarts camera mot
 
 
 import { ritePoints, riteLength, walkTrees, ashTrunks, stationMeters, THRESHOLD, pointAt, distToWalk, AXIS } from "../src/world/rite-path.ts";
-import { riteStations, roadLines, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt, torchbearer } from "../src/world/rite.ts";
+import { riteStations, riteStops, riteGroups, roadLines, resolveFigure, chronologicalSky, yearsAgoAt, yearLabel, standAt, torchbearer } from "../src/world/rite.ts";
 import { shadowSpecs } from "../src/world/rite-shadows.ts";
 import { riteFigures } from "../src/data/riteFigures.ts";
 import { civilizationStars } from "../src/data/civilizationStars.ts";
@@ -279,8 +279,9 @@ test("the road is lined with memorials at uneven distances: relics of the namele
   assert.ok(memorials.length>=20,"many memorials, not a handful of stations");
   assert.ok(memorials.filter(m=>m.kind==="relic").length>=8&&memorials.filter(m=>m.kind==="stone").length>=10);
   assert.ok(memorials.slice(0,5).every(m=>m.kind==="relic"),"the oldest ages are remembered by their relics");
-  const gaps=riteStations.slice(1).map((m,i)=>m.s-riteStations[i].s);
-  assert.ok(gaps.every(g=>g>6),"each memorial is a few steps from the last");
+  const along=riteStations.slice(1).filter(m=>!m.group).map(m=>m.s).concat(Object.values(riteGroups).map(g=>g.s)).sort((a,b)=>a-b);
+  const gaps=along.slice(1).map((v,i)=>v-along[i]);
+  assert.ok(gaps.every(g=>g>12),"each place is a walk from the last");
   assert.ok(Math.max(...gaps)>3*Math.min(...gaps),"spacing is uneven, not a row");
   assert.ok(memorials.every(m=>m.s>THRESHOLD+10&&m.s<riteLength-20));
   for(const station of riteStations) {
@@ -292,6 +293,13 @@ test("the road is lined with memorials at uneven distances: relics of the namele
     if(station.kind==="stone") for(const lang of ["en","zh"] as const) assert.ok(resolveFigure(station.id,lang)?.quote,`${station.id}'s stone has words to carve`);
   }
   for(let i=1;i<roadLines.length;i++) assert.ok(roadLines[i].at>roadLines[i-1].at);
+  // the road stops you only where it matters; the rest you honour in passing, and alike things together
+  assert.ok(riteStops.length<=11,"few stops, so the walk does not drag");
+  assert.ok(memorials.filter(m=>m.pass).length>=5,"lesser memorials are walked past");
+  for(let i=1;i<riteStops.length;i++) assert.ok(riteStops[i].stand-riteStops[i-1].stand>15,"stops are far apart");
+  for(const [id,g] of Object.entries(riteGroups)) { const members=riteStations.filter(m=>m.group===id); assert.ok(members.length>=2); assert.ok(members.every(m=>m.kind==="stone"&&m.s===g.s));
+    for(let i=1;i<members.length;i++) assert.ok(members[i].yearsAgo<=members[i-1].yearsAgo,"a group is honoured in the order of history"); }
+  assert.deepEqual(riteStops.flatMap(x=>x.members).concat(riteStations.flatMap((m,i)=>m.pass?[i]:[])).sort((a,b)=>a-b),riteStations.map((_,i)=>i),"every memorial is a stop, in a group, or walked past");
   for(const line of roadLines) assert.ok(!riteStations.some(m=>Math.abs(m.s-line.at)<3),"history is heard between memorials, not at them");
 });
 test("walk-only figures are not duplicates of the shared civilization records", () => {

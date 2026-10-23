@@ -14,7 +14,8 @@ const GLOW = `
   float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
   float fbm(vec2 p){ float v = 0., a = .5; for (int k = 0; k < 3; k++) { v += a * n2(p); p *= 2.13; a *= .5; } return v; }
-  float mask(vec2 q){ return (q.x < 0. || q.x > 1. || q.y < 0. || q.y > 1.) ? 0. : texture2D(uMask, q).a; }
+  // soft at the image's own edges, so a drawing that runs off its frame (the Buddha's tree) never shows a hard border
+  float mask(vec2 q){ return (q.x < 0. || q.x > 1. || q.y < 0. || q.y > 1.) ? 0. : texture2D(uMask, q).a * smoothstep(0., .1, q.x) * smoothstep(1., .9, q.x) * smoothstep(1., .9, q.y); }
   void main(){
     float t = uTime + uSeed * 17.;
     vec2 uv = vUv; uv.y -= uFade * .16; // as it goes, the figure lifts
@@ -55,7 +56,7 @@ const EMBER_VERTEX = `
   }`;
 const EMBER_FRAGMENT = `varying float vA; void main(){ float r = length(gl_PointCoord - .5), a = smoothstep(.5, .05, r) * vA * .5; if (a < .003) discard; gl_FragColor = vec4(vec3(1., .6, .27) * a, 1.); }`;
 
-type Figure = { mesh: THREE.Mesh; glow: THREE.ShaderMaterial; embers?: THREE.Points; ember?: THREE.ShaderMaterial; base: THREE.Vector3; head: THREE.Vector3;
+export type Figure = { mesh: THREE.Mesh; glow: THREE.ShaderMaterial; embers?: THREE.Points; ember?: THREE.ShaderMaterial; base: THREE.Vector3; head: THREE.Vector3;
   born: number; goneAt: number; crowd: boolean; level: number };
 
 const textures = new WeakMap<HTMLCanvasElement, THREE.CanvasTexture>();
@@ -109,8 +110,10 @@ export function createApparitions(o: { scene: THREE.Scene; height: (x: number, z
     /** the people a memorial remembers gather out of its fire, side by side at `base`, facing `toward` */
     summon(ids: string[], base: THREE.Vector3, toward: THREE.Vector3, from: THREE.Vector3, height = 2.15) {
       const across = new THREE.Vector3().subVectors(toward, base).setY(0).normalize(), side = new THREE.Vector3(across.z, 0, -across.x), gap = height * SHADOW_ASPECT * .78;
-      ids.forEach((id, k) => { const p = base.clone().addScaledVector(side, (k - (ids.length - 1) / 2) * gap); p.y = o.height(p.x, p.z); figure(id, p, toward, height, false, from); });
+      return ids.map((id, k) => { const p = base.clone().addScaledVector(side, (k - (ids.length - 1) / 2) * gap); p.y = o.height(p.x, p.z); return figure(id, p, toward, height, false, from); }).filter((f): f is Figure => !!f);
     },
+    /** someone you pass on the road without stopping: a faint figure beside their memorial, there until you go by */
+    presence(id: string, base: THREE.Vector3, toward: THREE.Vector3) { const f = figure(id, base, toward, 2.05, true); if (f) f.level = .34; return f; },
     /** the nameless people of the age, standing farther off in the dark */
     crowd(ids: string[], around: THREE.Vector3, toward: THREE.Vector3, spread = 1) {
       const away = Math.atan2(around.x - toward.x, around.z - toward.z);
@@ -120,12 +123,14 @@ export function createApparitions(o: { scene: THREE.Scene; height: (x: number, z
         const f = figure(id, p, toward, 1.95 + Math.random() * .2, true); if (f) f.born = time + k * .5;
       });
     },
-    /** let them go: the embers stream into one light at `into` (or above their heads), which is returned */
+    /** let them all go: each figure's embers stream into one light above its head (or all into `into`); the lights are returned */
     release(into?: THREE.Vector3) {
-      const main = figures.filter(f => !f.crowd && f.goneAt < 0), head = into?.clone() ?? (main.length ? main.reduce((a, f) => a.add(f.head), new THREE.Vector3()).multiplyScalar(1 / main.length).add(new THREE.Vector3(0, .35, 0)) : null);
-      for (const f of figures) if (f.goneAt < 0) { f.goneAt = time; if (head && f.ember) f.ember.uniforms.uHead.value.copy(head); }
-      return head;
+      const heads: THREE.Vector3[] = [];
+      for (const f of figures) if (f.goneAt < 0) { f.goneAt = time; if (f.ember) { const head = into?.clone() ?? f.head.clone().add(new THREE.Vector3(0, .35, 0)); f.ember.uniforms.uHead.value.copy(head); heads.push(head); } }
+      return heads;
     },
+    /** let one go */
+    dismiss(f: Figure) { if (f.goneAt < 0) f.goneAt = time; },
     clear() { while (figures.length) remove(figures[0]); },
     update(dt: number, camera: THREE.PerspectiveCamera, flicker: number) {
       time += dt;

@@ -35,7 +35,13 @@ export type RiteStation = {
   /** shadows that come out of the mist in front of you, and the people of the age turning around the rest of the ring */
   shadows: string[];
   crowd: string[];
+  /** walked past: it greets you as you go by, and its light rises without your stopping */
+  pass?: boolean;
+  /** honoured together with the others of its group, at one place (`riteGroups`) */
+  group?: string;
 };
+/** Several who belong together, standing in an arc beside the road, honoured one after another at one stop. */
+export type RiteGroup = { s: number; side: number; lines: Bilingual[]; after: Bilingual };
 
 const n = (en: string, zh: string): Bilingual => ({ en, zh });
 /** This year: dates on the road are counted back from it. */
@@ -65,49 +71,47 @@ export const riteStations: RiteStation[] = [
     [n("Three hundred thousand years ago, people like you appeared on the African grasslands.", "三十萬年前，非洲的草原上，出現了和你一樣的人。"),
       n("They sat around the fire, shared what they had hunted, and left the bones in the ashes.", "他們圍著火，分食獵物，把骨頭留在灰燼裡。")],
     n("Fire made the nights shorter, and the stories longer.", "火讓夜晚變短，讓故事變長。"), ["storyteller"], ["mother", "hunter", "mother"]),
-  relic("hunt", 69, 1, 2.6, 70000, n("Tusks and a spear", "象牙與長矛"),
+  { ...relic("hunt", 69, 1, 2.6, 70000, n("Tusks and a spear", "象牙與長矛"),
     [n("With stone points on wooden shafts, they followed the herds.", "他們把石尖綁上木桿，追著獸群走。")],
-    n("They walked out of Africa, across the ice, onto every continent.", "他們走出非洲，走過冰原，走到每一片大陸。"), ["hunter"], ["hunter", "mother", "hunter"]),
+    n("They walked out of Africa, across the ice, onto every continent.", "他們走出非洲，走過冰原，走到每一片大陸。"), ["hunter"], ["hunter", "mother", "hunter"]), pass: true },
   relic("painter", 100, 1, 3.4, 40000, n("Hands on the rock", "岩壁上的手"),
     [n("Forty thousand years ago, someone pressed a hand here and blew red ochre over it.", "四萬年前，有人把手按在這裡，吹上赭紅的顏料。"),
       n("It meant: I was here.", "那是在說：我曾在這裡。")],
     n("You were here, too.", "你也曾在這裡。"), ["painter", "shaman"], ["hunter", "mother", "storyteller"],
     n("Press your hand to the rock, and hold", "把你的手按在岩石上，按住"), "press"),
-  relic("needle", 126, -1, 2.3, 30000, n("A bone needle", "骨針"),
+  { ...relic("needle", 126, -1, 2.3, 30000, n("A bone needle", "骨針"),
     [n("A needle of bone, a thread of sinew: clothes that fit, against the cold of the ice.", "一根骨針，一條獸筋：合身的衣服，擋住冰河的寒冷。")],
-    n("They sang for their dead, and buried them with flowers.", "他們為死去的人唱歌，用花把他們埋葬。"), ["sewer"], ["mother", "hunter", "storyteller"]),
+    n("They sang for their dead, and buried them with flowers.", "他們為死去的人唱歌，用花把他們埋葬。"), ["sewer"], ["mother", "hunter", "storyteller"]), pass: true },
   // ─── the first fields and towns ───
   relic("farmer", 172, -1, 1.9, 12000, n("Seed", "種子"),
     [n("Twelve thousand years ago, people buried seeds in the ground, and then they waited.", "一萬兩千年前，人們把種子埋進土裡，然後——等待。"),
       n("To wait is to believe in tomorrow.", "等待，意味著相信明天。")],
     n("A field remembers the hands that sowed it.", "田野記得播種的手。"), ["farmer"], ["harvester", "carrier", "harvester", "carrier"],
     n("Kneel, and hold the seed in the earth", "蹲下，把種子按進土裡"), "kneel"),
-  relic("builder", 203, 1, 3, bce(7000), n("A doorway", "一道門"),
+  { ...relic("builder", 203, 1, 3, bce(7000), n("A doorway", "一道門"),
     [n("Where there was a harvest, there were villages. Brick by brick, people raised walls.", "有了收成，就有了村莊。一塊磚一塊磚，人們砌起了牆。")],
-    n("A door: on one side, home; on the other, the world.", "一道門：一邊是家，一邊是世界。"), ["builder"], ["carrier", "builder", "harvester"]),
-  relic("ruler", 226, -1, 2.6, bce(3200), n("An empty throne", "空的王座"),
+    n("A door: on one side, home; on the other, the world.", "一道門：一邊是家，一邊是世界。"), ["builder"], ["carrier", "builder", "harvester"]), pass: true },
+  { ...relic("ruler", 226, -1, 2.6, bce(3200), n("An empty throne", "空的王座"),
     [n("The cities had too much to remember. So there were kings, and there was writing.", "城市要記住的事，太多了。於是有了國王，有了文字。")],
-    n("For the first time, memory left the body.", "記憶，第一次離開了人的身體。"), ["king", "scribe"], ["scribe", "builder", "carrier"]),
+    n("For the first time, memory left the body.", "記憶，第一次離開了人的身體。"), ["king", "scribe"], ["scribe", "builder", "carrier"]), pass: true },
   stone("enheduanna", 248, 1, bce(2285), ["scribe", "carrier", "builder"]),
-  relic("soldier", 271, -1, 2.8, bce(1300), n("A chariot wheel", "戰車的輪子"),
+  { ...relic("soldier", 271, -1, 2.8, bce(1300), n("A chariot wheel", "戰車的輪子"),
     [n("Beyond the walls, there were armies. Empires rose, and fell.", "城牆之外，有了軍隊。帝國興起，又倒下。")],
-    n("Where the wheels went, the grass grew back.", "車輪輾過的地方，草又長了回來。"), ["soldier"], ["soldier", "refugee", "soldier"]),
+    n("Where the wheels went, the grass grew back.", "車輪輾過的地方，草又長了回來。"), ["soldier"], ["soldier", "refugee", "soldier"]), pass: true },
   // ─── the awakening: four who never met ───
-  stone("laozi", 300, -1, bce(530), ["traveller", "disciple"]),
-  stone("confucius", 312, 1, bce(500), ["disciple", "traveller"]),
-  stone("buddha", 324, -1, bce(450), ["disciple", "traveller"]),
-  stone("socrates", 337, 1, bce(430), ["disciple", "traveller"]),
+  { ...stone("laozi", 322, -1, bce(530), ["traveller", "disciple"]), group: "axial" },
+  { ...stone("confucius", 322, -1, bce(500), ["disciple", "traveller"]), group: "axial" },
+  { ...stone("buddha", 322, -1, bce(450), ["disciple", "traveller"]), group: "axial" },
+  { ...stone("socrates", 322, -1, bce(430), ["disciple", "traveller"]), group: "axial" },
   // ─── the heavens ───
-  stone("zhangheng", 360, -1, ce(132), ["stargazer", "scribe"]),
-  relic("navigator", 381, 1, 2.6, ce(1522), n("An anchor", "船錨"),
+  { ...stone("zhangheng", 360, -1, ce(132), ["stargazer", "scribe"]), pass: true },
+  { ...relic("navigator", 381, 1, 2.6, ce(1522), n("An anchor", "船錨"),
     [n("Ships crossed every ocean. In 1522, one came home from the first voyage around the world.", "船越過了每一片海洋。1522 年，第一艘環繞世界一周的船回到了港口。")],
-    n("From then on, the map had no edge.", "從此，地圖沒有了邊。"), ["navigator"], ["navigator", "stargazer", "traveller"]),
-  stone("copernicus", 398, -1, ce(1543), ["stargazer", "navigator"],
-    [n("For centuries we believed the Earth stood still at the centre of everything.", "千百年來，人們以為大地靜止於宇宙的中心。"),
-      n("Until someone dared to look again.", "直到有人，敢再看一次天空。")]),
-  stone("galileo", 411, 1, ce(1610), ["stargazer", "navigator"]),
-  stone("newton", 423, -1, ce(1687), ["stargazer", "navigator"]),
-  stone("curie", 430, 1, ce(1898), ["stargazer", "traveller"]),
+    n("From then on, the map had no edge.", "從此，地圖沒有了邊。"), ["navigator"], ["navigator", "stargazer", "traveller"]), pass: true },
+  { ...stone("copernicus", 404, 1, ce(1543), ["stargazer", "navigator"]), group: "heavens" },
+  { ...stone("galileo", 404, 1, ce(1610), ["stargazer", "navigator"]), group: "heavens" },
+  { ...stone("newton", 404, 1, ce(1687), ["stargazer", "navigator"]), group: "heavens" },
+  { ...stone("curie", 404, 1, ce(1898), ["stargazer", "traveller"]), group: "heavens" },
   // ─── ashes ───
   relic("war", 474, -1, 2.7, ce(1944), n("A candle in the ruins", "廢墟裡的蠟燭"),
     [n("But the same fire can burn everything.", "但同一把火，也能焚燒一切。"),
@@ -115,8 +119,8 @@ export const riteStations: RiteStation[] = [
       n("Your fire is almost out. Give what is left of it away.", "你的火快要熄了。把僅剩的火，傳出去。")],
     n("On the ruins, people wrote down a promise. Fire can burn, or it can light the way.", "在廢墟之上，人們寫下了一個承諾。火可以焚燒，也可以照亮。"), ["refugee"], ["refugee", "planter", "refugee", "planter"],
     n("Hold your torch to the candle, and pass the flame", "把火把靠近蠟燭，按住，把火傳過去"), "pass"),
-  stone("eleanor", 489, 1, ce(1948), ["planter", "refugee"]),
-  stone("pcchang", 499, -1, ce(1948), ["planter", "refugee"]),
+  { ...stone("eleanor", 494, 1, ce(1948), ["planter", "refugee"]), group: "rights" },
+  { ...stone("pcchang", 494, 1, ce(1948), ["planter", "refugee"]), group: "rights" },
   // ─── the end of the road: a stone with nothing on it yet ───
   { kind: "you", id: "you", s: riteLength, side: 0, off: 0, yearsAgo: 0, title: n("You", "你"),
     lines: [n("Three hundred thousand years. About twelve thousand generations.", "三十萬年，大約一萬兩千個世代。"),
@@ -128,14 +132,38 @@ export const riteStations: RiteStation[] = [
     figures: [], shadows: ["you"], crowd: ["painter", "farmer", "enheduanna", "confucius", "socrates", "galileo", "curie"] },
 ];
 
+export const riteGroups: Record<string, RiteGroup> = {
+  axial: { s: 322, side: -1,
+    lines: [n("Twenty-five centuries ago, people who never met looked up and asked the same question:", "兩千五百年前，彼此從未相遇的人，同時抬頭，問了同一個問題："),
+      n("How should a person live?", "人，應該如何活著？")],
+    after: n("They never met, yet they lit the same sky.", "他們從未相遇，卻點亮了同一片夜空。") },
+  heavens: { s: 404, side: 1,
+    lines: [n("For centuries we believed the Earth stood still at the centre of everything.", "千百年來，人們以為大地靜止於宇宙的中心。"),
+      n("Until someone dared to look again.", "直到有人，敢再看一次天空。")],
+    after: n("The universe can be understood.", "宇宙，是可以被理解的。") },
+  rights: { s: 494, side: 1, lines: [],
+    after: n("For the first time, everyone was written into the same promise.", "第一次，所有的人都被寫進了同一個承諾。") },
+};
+
+/** Where the road stops you: the fire, each memorial you honour on its own, each group, your stone. Walked-past
+ * memorials are not stops. `stand` is where you stand, in metres along the road. */
+export type RiteStop = { members: number[]; stand: number; group?: string };
+export const riteStops: RiteStop[] = (() => {
+  const out: RiteStop[] = [];
+  riteStations.forEach((st, i) => {
+    if (st.pass) return;
+    if (st.group) { const last = out[out.length - 1]; if (last?.group === st.group) last.members.push(i); else out.push({ members: [i], stand: riteGroups[st.group].s, group: st.group }); return; }
+    out.push({ members: [i], stand: st.kind === "fire" ? 0 : st.s - (st.kind === "you" ? 2.4 : st.kind === "stone" ? .4 : 2.1) });
+  });
+  return out;
+})();
+
 /** The history heard between the memorials, at metres along the road. */
 export const roadLines: { at: number; text: Bilingual }[] = [
   { at: 141, text: n("They learned to carry fire with them, wherever they went.", "他們學會了帶著火走，走到哪裡，帶到哪裡。") },
   { at: 186, text: n("Villages grew into towns.", "村莊，長成了城鎮。") },
-  { at: 278, text: n("Twenty-five centuries ago, people who never met looked up and asked the same question:", "兩千五百年前，彼此從未相遇的人，同時抬頭，問了同一個問題：") },
-  { at: 288, text: n("How should a person live?", "人，應該如何活著？") },
-  { at: 343, text: n("They never met, yet they lit the same sky.", "他們從未相遇，卻點亮了同一片夜空。") },
-  { at: 351, text: n("Their words were copied, translated and argued over for two thousand years.", "他們的話，被抄寫、翻譯、爭論了兩千年。") },
+  { at: 290, text: n("Every age believed it would last for ever.", "每一個時代，都以為自己會永遠存在。") },
+  { at: 337, text: n("Their words were copied, translated and argued over for two thousand years.", "他們的話，被抄寫、翻譯、爭論了兩千年。") },
   { at: 368, text: n("Paper, the compass and printing travelled from east to west.", "紙、指南針和印刷術，從東方一路傳到西方。") },
   { at: 437, text: n("Telescopes, steam engines, electric light: the world began to accelerate.", "望遠鏡、蒸汽機、電燈——世界忽然加速。") },
   { at: 450, text: n("Then the air began to smell of smoke.", "然後，空氣裡開始有煙的味道。") },
@@ -223,8 +251,9 @@ export function chronologicalSky() {
     .sort((a, b) => a.year - b.year || a.index - b.index).map(item => item.index);
 }
 
-/** Where you stand at each place shows the moment it stands for: just before a relic or your stone, beside a gravestone, facing it. */
-export const standAt = (i: number) => riteStations[i].s - (riteStations[i].kind === "you" ? 2.4 : riteStations[i].kind === "stone" ? .4 : 2.1);
+/** Where you stand to honour a memorial (or pass it), which shows the moment it stands for. A group shows its
+ * first member where you stand, and its last a few steps on. */
+export const standAt = (i: number) => { const st = riteStations[i]; if (st.pass) return st.s; const stop = riteStops.find(x => x.members.includes(i))!; return stop.stand + (stop.group ? stop.members.indexOf(i) / Math.max(1, stop.members.length - 1) * 6 : 0); };
 export const yearMarks: [number, number][] = [[THRESHOLD, 300000] as [number, number],
   ...riteStations.slice(1).map((st, i) => [standAt(i + 1), st.yearsAgo] as [number, number]),
   [zones.ash[0], NOW - 1914] as [number, number]].sort((a, b) => a[0] - b[0]);

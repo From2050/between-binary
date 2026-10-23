@@ -283,33 +283,34 @@ The Civilization Star Map article describes a walkway whose path traces human pr
 - **The threshold.** Two standing stones mark where the clearing ends: *Beyond this stone, it is three hundred thousand years ago.*
 - **The long road.** The road leaves the trees around home and crosses open moor under the aurora; mist lies in the hollows and your torch is the only light on the ground. Beyond the trees around home there are no more trees: only moor grass in three heights moving in one wind, heather-dark ground, stones and mist. The country is burnt before the end, then the last bare slope climbs to the crest.
 - **Memorials, not cairns.** A line of fires that lit themselves as you passed felt contrived, so the road is now lined with memorials at uneven distances, as old graves are: 22 of them, about 7 to 46 m apart. The ages whose people left no names are remembered by a relic of their age: bones by an old hearth, mammoth tusks and a spear, hands on a rock, a hide on a drying frame with a bone needle, a seed, a doorway of mud brick, an empty stone throne with a clay tablet, a chariot wheel half sunk among spears, an anchor far from any sea, a candle in the ruins. Those we can name have a gravestone carved with their name, their years and their own words (Enheduanna, Laozi, Confucius, the Buddha, Socrates, Zhang Heng, Copernicus, Galileo, Newton, Marie Curie, Eleanor Roosevelt, P. C. Chang). Between them, with every age, more unmarked stones stand in the moor: a few rough standing stones in deep time, then small worn slabs, rows of them beyond the wars, and on the last slope more than you can count.
-- **Honouring.** The road stops you at each memorial. You hold your torch to it (at the rock you press your hand, at the seed you kneel, among the ruins you pass your flame to the candle). A small fire is lit in a stone bowl at its foot, and stays lit. A gravestone's carved words fill with firelight. Sparks rise from the bowl and gather into the person beside the memorial, a figure of firelight; you hear their story. Then the figure loosens, every spark streams up into one light, and the light goes on, slowly at first, then all at once, into the sky to become their star.
+- **Not empty, not dark.** Every memorial already has flowers left at its foot and a small fire burning low in its bowl, as if others had come before you; the flat-topped gravestones have pebbles on them. Here and there among the unmarked stones someone has left a candle. Honouring a memorial makes its fire burn fully.
+- **Stops, groups and passing.** The road stops you at ten places: the fire, the old hearth, the hands on the rock, the seed, Enheduanna, the four philosophers, the astronomers, the candle in the ruins, the two authors of the Declaration, and your stone. Those who belong together stand in an arc facing the road and are honoured at one stop, one after another, oldest on the left: hold E (or the stone) for a second for each, and the year follows whoever you are honouring. Seven lesser memorials (the tusks, the needle, the doorway, the throne, the chariot wheel, Zhang Heng, the anchor) are walked past: you slow a little, a faint figure stands beside each, a line is spoken (for Zhang Heng his words), and as you go by its fire brightens and its light rises. The walk to your stone takes about seven minutes.
+- **Honouring.** You hold your torch to the memorial (at the rock you press your hand, at the seed you kneel, among the ruins you pass your flame to the candle). Its fire burns fully, and a gravestone's carved words fill with firelight. Sparks rise from the bowl and gather into the person beside the memorial, a figure of firelight; you hear their story. Then the figure loosens, every spark streams up into one light, and the light goes on, slowly at first, then all at once, into the sky to become their star. In a group each gathers as you honour them, and they all go up together after the last.
 - **The ordeal.** In the burnt country the sky, aurora, moon and stars go dark and your torch nearly goes out. The wind pushes against you, so walking slows. Only when you give your last flame to a candle does the light return.
 - **The end of the road.** On the crest stands a tall stone with nothing on it yet: *This stone has nothing carved on it yet. Now it is your turn.* You hold your torch to it, and your name is carved into it letter by letter (or *Someone who carries the fire*), with the date and the words: *Whatever you do will be fire for the next generation, and a monument of this age.* Sparks from the fire behind the stone gather into your own figure, holding up a torch, while the people you met stand faintly in the dark on the slope; then your figure streams into the top of your stone, your star rises from it into the shared sky, and the 45 civilization stars wake around it in the order history wrote them. *Whatever you go on to do, you carry on what they began.*
 - **Look back.** The camera turns and the mist thins. The small fires you lit for them run back down the slope, across the fields toward the warm glow of home, with the lake and the aurora beyond.
 - **Return.** **Return home** glides you back above the lit road in about 40 seconds, to the clearing: *Welcome home.* The torch you carried now burns in its stand. Your star, the lit road, the grown field and the stars you met stay (localStorage `bb-rite`); walking again starts a new rite.
 
-**Agency.** Hold to walk: pointer or touch held on empty ground, or W / Space / ↑. Walking speeds up as you keep holding and slows uphill, near a memorial and in the ashes. What is said at a relic begins as you approach, and the road stops you at each memorial. Each act is held in the scene (or E):
+**Agency.** Hold to walk: pointer or touch held on empty ground, or W / Space / ↑. Walking speeds up as you keep holding and slows uphill, near a memorial and in the ashes. What is said at a stop begins as you approach. Each act is held in the scene (or E):
 
 | Memorial | Moment | Act, and what follows |
 | --- | --- | --- |
 | The campfire | tonight | hold the torch in the fire |
 | Bones by the fire | about 200,000 years ago | offer your fire: the old hearth burns again |
-| Tusks and a spear | about 70,000 years ago | offer your fire |
+| Tusks and a spear | about 70,000 years ago | walked past |
 | Hands on the rock | about 40,000 years ago | ancestral hands appear only in your torchlight; press yours beside them |
-| A bone needle | about 30,000 years ago | offer your fire |
+| A bone needle | about 30,000 years ago | walked past |
 | Seed | about 12,000 years ago | kneel and press the seed into the earth; a wheat field spreads 28 m around you |
-| A doorway | about 9,000 years ago | offer your fire |
-| An empty throne | about 3200 BCE | offer your fire (low walls of the first cities around it) |
+| A doorway | about 7000 BCE | walked past |
+| An empty throne | about 3200 BCE | walked past (low walls of the first cities around it) |
 | Enheduanna | c. 2285 BCE | her gravestone; offer your fire |
-| A chariot wheel | about 1300 BCE | offer your fire |
-| Laozi, Confucius, the Buddha, Socrates | 6th–5th century BCE | four gravestones on the knoll |
-| Zhang Heng | 132 | gravestone |
-| An anchor | 1522 | offer your fire |
-| Copernicus | 1543 | gravestone; beside it the armillary's loops relax into orbits round the Sun |
-| Galileo, Newton, Marie Curie | 1610–1898 | gravestones |
+| A chariot wheel | about 1300 BCE | walked past |
+| Laozi, Confucius, the Buddha, Socrates | 6th–5th century BCE | one stop: four gravestones in an arc on the knoll, honoured in turn |
+| Zhang Heng | 132 | gravestone, walked past |
+| An anchor | 1522 | walked past |
+| Copernicus, Galileo, Newton, Marie Curie | 1543–1898 | one stop: four gravestones in an arc, the armillary behind them (its loops relax into orbits once Copernicus is honoured) |
 | A candle in the ruins | 1914–1945 | pass what is left of your flame to the candle |
-| Eleanor Roosevelt, P. C. Chang | 1948 | gravestones |
+| Eleanor Roosevelt, P. C. Chang | 1948 | one stop: two gravestones, before the rows of war graves |
 | Your stone | today | hold your torch to it; your name is carved |
 
 **Stars: the Torchbearer.** Every memorial is one star of a single constellation (`torchbearer` in `rite.ts`): a figure striding across the sky with a fire held high. The nameless ages are its legs (deep time one leg, the first fields and cities the other) meeting at Enheduanna, the first author known by name; the philosophers are its body and head, the astronomers and sailors its arms, the survivors of the wars and the authors of human rights the hand that holds the fire. Its stars are faint from the start, ahead of you in the western sky; each memorial's light rises into its own, and a ribbon of light joins the new star to those already lit. At the end of the road your star rises from your stone and becomes the flame (*The flame at the top is you.*). Then the 45 civilization stars wake in the order history wrote them, and from each a fine streak of light crosses the sky into the flame; once they have, the joining lines fade and only the stars and the flame remain. The figure is kept small, low and away from the moon. The constellation lives in the celestial sphere and turns with it.
