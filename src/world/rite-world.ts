@@ -5,9 +5,11 @@ import { riteStations, riteGroups, riteStops, riteUi, roadLines, resolveFigure, 
 import { createRiteSound, type RiteMix } from "./rite-sound.ts";
 import { addRoadside, type Placement } from "./rite-land.ts";
 import { addAtmosphere } from "./rite-atmos.ts";
-import { loadShadowArt, shadowSpecs } from "./rite-shadows.ts";
-import { createApparitions, type Figure } from "./rite-apparitions.ts";
-import { gravestone, steleGeometry, stoneMaterial, bowl, flowerBunch, flowerMaterial, pebbleGeometry, hearth, hunt, needle, doorway, throne, wheel, anchor as anchorRelic, type Relic, type Top } from "./rite-memorials.ts";
+import { loadShadowArt, shadowSpecs, shadowCanvas } from "./rite-shadows.ts";
+import { namedMemorial } from "./rite-named.ts";
+import { carving, line as carveLine, FONTS, loadCarvingFonts } from "./rite-inscriptions.ts";
+import { createApparitions } from "./rite-apparitions.ts";
+import { steleGeometry, stoneMaterial, bowl, flowerBunch, flowerMaterial, pebbleGeometry, hearth, hunt, needle, doorway, throne, wheel, anchor as anchorRelic, type Relic, type Top } from "./rite-memorials.ts";
 import { overview } from "./journey.ts";
 import type { createWind } from "./wind";
 
@@ -146,14 +148,6 @@ function textPlane(width: number, height: number) {
   return { mesh, draw };
 }
 
-/** The shape of each gravestone: older and eastern stones round-topped, Greek and European ones pointed or flat. */
-const stoneForm: Record<string, { w: number; h: number; top: Top; tint?: number }> = {
-  enheduanna: { w: .78, h: 1.78, top: "arch", tint: 0xe6dccb },
-  laozi: { w: .82, h: 1.5, top: "round" }, confucius: { w: .86, h: 1.6, top: "round" }, buddha: { w: .82, h: 1.56, top: "arch", tint: 0xe4ddd0 }, socrates: { w: .84, h: 1.54, top: "peak", tint: 0xf2eee6 },
-  zhangheng: { w: .84, h: 1.54, top: "round" }, copernicus: { w: .86, h: 1.5, top: "flat", tint: 0xdedad2 }, galileo: { w: .84, h: 1.5, top: "arch" }, newton: { w: .88, h: 1.56, top: "peak", tint: 0xe0ddd6 }, curie: { w: .82, h: 1.46, top: "flat" },
-  eleanor: { w: .86, h: 1.5, top: "flat", tint: 0xf0ece6 }, pcchang: { w: .86, h: 1.56, top: "round" },
-};
-
 export function createRite(o: Options) {
   const { scene, camera, glowTexture, height } = o;
   let lang: Lang = (() => {
@@ -239,17 +233,17 @@ export function createRite(o: Options) {
 
   // ─── Those you honour: they gather out of the fire you give them, and leave as the light that becomes their star ───
   const apparitions = createApparitions({ scene, height, small: o.small, pixelRatio });
-  void loadShadowArt(Object.keys(shadowSpecs));
+  const artReady = loadShadowArt(Object.keys(shadowSpecs)) ?? Promise.resolve();
 
   // ─── The places on the road: the fire, the memorials, your stone ───
   type Live = { st: RiteStation; i: number; s: number; pos: THREE.Vector3; group: THREE.Group; done: boolean; doneAt: number; focus: THREE.Vector3; top: number;
-    title?: ReturnType<typeof textPlane>; lamp?: number; glow?: THREE.MeshStandardMaterial; paint?: () => void; ghost: THREE.Vector3; presence?: Figure | null;
+    title?: ReturnType<typeof textPlane>; lamp?: number; glow?: THREE.MeshStandardMaterial; paint?: () => void; ghost: THREE.Vector3; wide: number;
     update?: (t: number, dt: number) => void; act?: (hit?: THREE.Intersection) => void; reset?: () => void };
   const live: Live[] = riteStations.map((st, i) => {
     const s = st.s, { pos, look } = placeOf(i);
     pos.y = height(pos.x, pos.z);
     const group = new THREE.Group(); group.position.copy(pos); group.lookAt(look.x, pos.y, look.z); root.add(group);
-    return { st, i, s, pos, group, done: false, doneAt: -1, focus: pos.clone().add(new THREE.Vector3(0, 1, 0)), top: 1.4, ghost: new THREE.Vector3(0, 0, -1.1) };
+    return { st, i, s, pos, group, done: false, doneAt: -1, focus: pos.clone().add(new THREE.Vector3(0, 1, 0)), top: 1.4, ghost: new THREE.Vector3(0, 0, -1.1), wide: 1 };
   });
   const byId = (id: string) => live.find(L => L.st.id === id)!;
   const figureOf = (L: Live) => resolveFigure(L.st.id, lang);
@@ -257,16 +251,15 @@ export function createRite(o: Options) {
   const lampSpots: { L?: Live; local: THREE.Vector3; world?: THREE.Vector3; flame: number; pool: number; bowl: boolean; light?: number }[] = [];
   const myHands: THREE.Mesh[] = [];
 
-  // the gravestones: a name, the years, their words
+  // those we can name: each memorial in the form their own people would have made, carved in their own script
+  const carvings: (() => void)[] = [];
   for (const L of live) {
-    const form = stoneForm[L.st.id]; if (L.st.kind !== "stone" || !form) continue;
-    const g = gravestone({ ...form, d: .17, seed: L.i * 13 + 5 }); g.mesh.rotation.set(0, (L.i % 3 - 1) * .06, (L.i % 2 ? 1 : -1) * .018); L.group.add(g.mesh);
-    const hit = hitbox(new THREE.BoxGeometry(form.w + .3, form.h + .2, .8), "gate", L.i); hit.position.y = form.h / 2; L.group.add(hit);
-    L.glow = g.inscription.material; L.top = form.h; L.focus.y = L.pos.y + form.h * .52; L.ghost.set(-(form.w / 2 + .62), 0, -.3);
-    L.paint = () => { const f = figureOf(L); if (!f) return; const zh = lang === "zh";
-      g.inscription.paint([{ text: f.name, size: zh ? 78 : 58, weight: 700, gap: zh ? 1.45 : 1.25 }, { text: f.life, size: zh ? 30 : 29, weight: 500, gap: 1.55 }, { text: "", size: 34, rule: true, gap: 1.25 },
-        ...(f.quote ? [{ text: zh ? `「${f.quote}」` : `“${f.quote}”`, size: zh ? 42 : 37, italic: !zh, weight: 600 }] : [])], { serif: serif() }, g.capFraction, zh); };
-    lampSpots.push({ L, local: new THREE.Vector3(form.w * .38, 0, .4), flame: .62, pool: .8, bowl: true, light: .4 }); // a softer light, so the carved face is not washed out
+    if (L.st.kind !== "stone") continue;
+    const nm = namedMemorial(L.st.id, { rock: rockMesh, shadow: shadowCanvas }); if (!nm) continue;
+    nm.group.rotation.y = (L.i % 3 - 1) * .05; L.group.add(nm.group);
+    const hit = hitbox(new THREE.BoxGeometry(nm.hit.x, nm.hit.y, nm.hit.z), "gate", L.i); hit.position.y = nm.hit.y / 2; L.group.add(hit);
+    L.top = nm.top; L.focus.y = L.pos.y + nm.focus; L.ghost.set(...nm.ghost); L.wide = nm.hit.x / 2; carvings.push(...nm.paint);
+    lampSpots.push({ L, local: nm.lamp, flame: .62, pool: .8, bowl: true, light: .45 });
   }
   // the relics of the ages without names
   const relicTitle = (L: Live, y: number) => { const title = textPlane(2.3, .65); title.mesh.position.copy(L.pos).add(new THREE.Vector3(0, y, 0)); title.mesh.renderOrder = 3; root.add(title.mesh); L.title = title; };
@@ -274,7 +267,7 @@ export function createRite(o: Options) {
     const L = byId(id); L.group.add(relic.group); L.focus.y = L.pos.y + relic.focus; L.top = relic.hit.y;
     const hit = hitbox(new THREE.BoxGeometry(relic.hit.x, relic.hit.y, relic.hit.z), "gate", L.i); hit.position.y = relic.hit.y / 2; L.group.add(hit);
     lampSpots.push({ L, local: relic.lamp, flame: relic.flame, pool: relic.flame > 1 ? 1.5 : .85, bowl: relic.flame <= 1 });
-    relicTitle(L, Math.max(2.3, relic.hit.y + .45));
+    L.wide = relic.hit.x / 2; if (!L.st.pass) relicTitle(L, Math.max(2.3, relic.hit.y + .45));
   };
   /** where their people stand, in each relic's frame: beside it or within it, never hidden behind it */
   const ghostAt: Record<string, [number, number, number]> = { hearth: [0, 0, -1.05], hunt: [0, 0, -.25], painter: [-2.75, 0, .5], needle: [1.4, 0, -.3], farmer: [0, 0, -1.3],
@@ -407,18 +400,27 @@ export function createRite(o: Options) {
 
   // · the end of the road: a tall stone on the crest with nothing on it yet; your name will be carved there
   const youL = byId("you");
-  const monument = gravestone({ w: 1.15, h: 2.35, d: .34, top: "rough", seed: 2026, tint: 0xe6ddd0 });
-  youL.group.add(monument.mesh); youL.glow = monument.inscription.material; youL.top = 2.35; youL.focus.y = youL.pos.y + 1.35;
+  let carveText = { name: "", date: "", words: "", zh: false, chars: 0 };
+  const monumentFace = carving({ w: 1.15, h: 2.35, tint: "#dcd4c6", seed: 2026, fill: "fresh", px: 384, depth: 1.1,
+    draw: (g, W, H) => { const c = carveText, latin = !/[\u3400-\u9fff]/.test(c.name), top = H * .2; if (c.chars <= 0) return;
+      const letters = [...c.name].slice(0, c.chars).join("");
+      carveLine(g, latin ? letters.toUpperCase() : letters, top, { size: W * (latin ? .13 : [...c.name].length > 5 ? .15 : .2), font: latin ? FONTS.roman : FONTS.kai, W, weight: 700, spacing: latin ? .1 : .18 });
+      if (c.chars <= [...c.name].length) return;
+      carveLine(g, c.date, top + H * .08, { size: W * .055, font: c.zh ? FONTS.kai : FONTS.roman, W, weight: 500 });
+      g.fillRect(W * .42, top + H * .12, W * .16, 3);
+      const words = c.words, chunks: string[] = []; if (c.zh) { const parts = words.split(/(?<=，)/); chunks.push(...parts); } else { let row = ""; for (const w of words.split(" ")) { if ((row + " " + w).length > 26 && row) { chunks.push(row); row = w; } else row = row ? row + " " + w : w; } chunks.push(row); }
+      chunks.forEach((t, k) => carveLine(g, t, top + H * (.18 + k * .055), { size: W * (c.zh ? .075 : .07), font: c.zh ? FONTS.kai : FONTS.italic, W, weight: c.zh ? 400 : 500, italic: !c.zh, spacing: c.zh ? .06 : .02 })); } });
+  const monument = { mesh: new THREE.Mesh(steleGeometry(1.15, 2.35, .34, "rough", 2026), [0, 1, 2, 3].map(() => stoneMaterial(0xdcd4c6)).concat([monumentFace.material, stoneMaterial(0xdcd4c6)])) };
+  monument.mesh.castShadow = monument.mesh.receiveShadow = true; monument.mesh.position.y = -.12;
+  youL.group.add(monument.mesh); youL.top = 2.35; youL.focus.y = youL.pos.y + 1.35;
   { const hit = hitbox(new THREE.BoxGeometry(1.5, 2.5, 1), "gate", youL.i); hit.position.y = 1.2; youL.group.add(hit); }
   let carved = -1, carveAt = -1, carvedName = "", carvedDate = "";
   const today = () => new Date().toISOString().slice(0, 10);
   const dateText = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return lang === "zh" ? `${y} 年 ${m} 月 ${d} 日` : `${d} ${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m - 1]} ${y}`; };
   /** carve the first `chars` letters of the name; one more step adds the date and the words beneath */
   function paintMonument(chars: number) {
-    carved = chars; const zh = lang === "zh", nameText = carvedName || riteUi.anyone[lang], letters = [...nameText], all = chars > letters.length;
-    const rows = chars <= 0 ? [] : [{ text: letters.slice(0, chars).join(""), size: zh ? (letters.length > 6 ? 62 : 84) : 64, weight: 600, gap: 1.5 },
-      ...(all ? [{ text: dateText(carvedDate || today()), size: 24, gap: 1.6 }, { text: "", size: 30, rule: true, gap: 1.4 }, { text: riteUi.legacy[lang], size: zh ? 36 : 32, italic: !zh, weight: 600 }] : [])];
-    monument.inscription.paint(rows, { serif: serif() }, monument.capFraction + .06, zh);
+    carved = chars; carveText = { name: carvedName || riteUi.anyone[lang], date: dateText(carvedDate || today()), words: riteUi.legacy[lang], zh: lang === "zh", chars };
+    monumentFace.paint();
   }
   youL.paint = () => paintMonument(carved < 0 ? 0 : carved);
   youL.reset = () => { carveAt = -1; carvedName = ""; paintMonument(0); };
@@ -457,6 +459,7 @@ export function createRite(o: Options) {
 
   // ─── The small fires: one at each memorial, burning low until you honour it; and the candles others left ───
   for (const L of live) { L.group.updateMatrixWorld(true); const g = ghostAt[L.st.id]; if (g) L.ghost.set(...g); L.ghost = L.group.localToWorld(L.ghost.clone()); L.ghost.y = height(L.ghost.x, L.ghost.z); }
+  void Promise.all([loadCarvingFonts(), artReady]).then(() => { const queue = [...carvings]; const next = () => { const job = queue.shift(); if (!job) return; job(); setTimeout(next, 30); }; next(); paintMonument(carved < 0 ? 0 : carved); });
   const LOW = .48; // a memorial's fire before you come: someone has kept it burning
   const candleMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc4, roughness: .6, emissive: 0x6a4410, emissiveIntensity: .35 });
   for (const w of strays.slice(0, o.small ? 8 : 16)) lampSpots.push({ world: w, local: new THREE.Vector3(), flame: .3, pool: .45, bowl: false, light: .5 });
@@ -517,14 +520,13 @@ export function createRite(o: Options) {
     const m = new THREE.Object3D(), r = seeded(977), put = (L: Live, local: THREE.Vector3, ground: boolean) => { const w = L.group.localToWorld(local.clone()); if (ground) w.y = height(w.x, w.z) - .01; return w; };
     for (const L of live) {
       if (L.st.kind !== "relic" && L.st.kind !== "stone") continue;
-      const form = stoneForm[L.st.id], wide = form ? form.w / 2 + .15 : 1, palette = Math.floor(r() * geos.length);
+      const named = L.st.kind === "stone", wide = Math.min(1.1, L.wide), palette = Math.floor(r() * geos.length), lamp = L.lamp !== undefined ? L.group.worldToLocal(lamps[L.lamp].top.clone()) : null;
       for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) {
-        const local = new THREE.Vector3((r() - .5) * wide * 2, 0, (form ? .14 : .35) + r() * .45);
-        if (form && local.x > form.w * .2 && local.z < .6) local.x -= form.w * .55; // not in the bowl
+        const local = new THREE.Vector3((r() - .5) * wide * 2, 0, (named ? .3 : .35) + r() * .3);
+        if (lamp && Math.hypot(local.x - lamp.x, local.z - lamp.z) < .28) local.x += local.x > lamp.x ? .3 : -.3; // not in the bowl
         m.position.copy(put(L, local, true)); m.rotation.set(0, r() * 6.28, 0); m.scale.setScalar(.85 + r() * .5); m.updateMatrix(); lists[(palette + (k % 2)) % geos.length].push(m.matrix.clone());
       }
       for (let k = 0, n = 3 + Math.floor(r() * 4); k < n; k++) { const sz = .028 + r() * .03; m.position.copy(put(L, new THREE.Vector3((r() - .5) * wide * 1.6, 0, .1 + r() * .5), true)).add(new THREE.Vector3(0, sz * .3, 0)); m.rotation.set(0, r() * 6.28, 0); m.scale.set(sz * 1.2, sz, sz); m.updateMatrix(); pebbles.push(m.matrix.clone()); }
-      if (form && form.top === "flat") for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) { const sz = .026 + r() * .02; m.position.copy(put(L, new THREE.Vector3((r() - .5) * form.w * .7, form.h - .135 + sz * .3, (r() - .5) * .06), false)); m.rotation.set(0, r() * 6.28, 0); m.scale.set(sz * 1.2, sz, sz); m.updateMatrix(); pebbles.push(m.matrix.clone()); }
     }
     const add = (geo: THREE.BufferGeometry, mat: THREE.Material, list: THREE.Matrix4[]) => { if (!list.length) return; const mesh = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((x, k) => mesh.setMatrixAt(k, x)); mesh.receiveShadow = true; mesh.computeBoundingSphere(); root.add(mesh); };
     geos.forEach((geo, k) => add(geo, fmat, lists[k]));
@@ -750,11 +752,8 @@ export function createRite(o: Options) {
   /** A memorial you walk past: its fire brightens as your torch goes by, the faint figure beside it lifts away, and its light goes up. */
   function passBy(L: Live) {
     if (L.done) return; L.done = true; L.doneAt = time;
-    if (L.lamp !== undefined) { lamps[L.lamp].want = 1; dirty = true; sound.ignite(); }
-    if (L.presence) { apparitions.dismiss(L.presence); L.presence = null; }
-    const k = starOf(L); if (k >= 0) later(.6, () => ascend(L.pos.clone().add(new THREE.Vector3(0, L.top + .3, 0)), k));
+    const k = starOf(L); if (k >= 0) { stars[k].metAt = time; rebuildConstellation(); }
   }
-  const passLine = (L: Live) => { if (L.st.kind === "stone") { const f = figureOf(L); return f ? `${f.name}${f.quote ? (lang === "zh" ? `：「${f.quote}」` : `: “${f.quote}”`) : ""}` : ""; } return L.st.lines[0] ? say(L.st.lines[0], lang, name) : ""; };
   /** Your name is on your stone; now your star rises from it, the shared sky wakes, and you look back. */
   function startFinale() {
     if (state !== "walk") return;
@@ -763,7 +762,7 @@ export function createRite(o: Options) {
 
   function resetWalk() {
     live.forEach(L => { L.done = false; L.doneAt = -1; L.reset?.(); }); index = 0; s = 0; mineAt = -1; finaleAt = -1; civWoken = 0; crossed = false; passed.clear(); pending.length = 0;
-    stars.forEach(x => { x.metAt = -1; }); apparitions.clear(); live.forEach(L => { L.presence = undefined; }); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setLamps(LOW);
+    stars.forEach(x => { x.metAt = -1; }); apparitions.clear(); mineRemembered = false; figureGlow = 0; anchor(); rebuildConstellation(); setLamps(LOW);
     mine.material.opacity = mineHalo.material.opacity = 0; mineHit.visible = false; (civGlow.array as Float32Array).fill(0); civGlow.needsUpdate = true;
     trail.material.opacity = 0; standLit = 0; crestLit = 0;
   }
@@ -868,7 +867,7 @@ export function createRite(o: Options) {
     get state() { return { state, index, stops: stops.length, memorial: current().st.id, at: +stops[index].stand.toFixed(1), phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), lampsLit: lamps.filter(c => c.lit > 0).length, lamps: N, met: stars.filter(x => x.metAt > -1).length, stars: stars.length, civWoken, year: yearText, audio: sound.ready, sky: +o.civ.group.rotation.y.toFixed(4), ft: finaleAt >= 0 ? +(time - finaleAt).toFixed(1) : -1 }; },
     complete: (i: number) => complete(i), wake: (i: number) => wake(i, false), go: (d: number) => { s = d; }, home: () => returnHome(),
     /** skip to a stop, as if everything before it had been honoured */
-    goStop: (k: number) => { for (let j = 1; j < k; j++) stops[j].members.forEach(m => { m.done = true; m.doneAt = time; }); passers.forEach(P => { if (P.s < stops[k].stand - 12) { P.done = true; P.presence = null; } }); index = k; s = Math.max(0, stops[k].stand - 10); phase = "walk"; },
+    goStop: (k: number) => { for (let j = 1; j < k; j++) stops[j].members.forEach(m => { m.done = true; m.doneAt = time; }); passers.forEach(P => { if (P.s < stops[k].stand - 12) P.done = true; }); index = k; s = Math.max(0, stops[k].stand - 10); phase = "walk"; },
     scene,
     /** what is under a point of the screen (normalised device coordinates) */
     pick: (x: number, y: number) => { const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x, y), camera); return r.intersectObjects(scene.children, true).filter(h => h.object.type === "Mesh" || h.object.type === "InstancedMesh").slice(0, 4).map(h => { const m = h.object as THREE.Mesh, w = m.getWorldPosition(new THREE.Vector3()); return `${m.type}:${m.name || m.parent?.name || ""}:${(m.material as THREE.Material).type}:${m.geometry.type}:${m.geometry.attributes.position.count}:inst${h.instanceId ?? ""}:d${h.distance.toFixed(2)}:at${w.toArray().map(v => v.toFixed(1))}:s${m.scale.toArray().map(v => v.toFixed(2))}:col${((m.material as THREE.MeshStandardMaterial).color?.getHexString?.() ?? "")}:vis${(m.material as THREE.Material).visible}`; }); },
@@ -908,11 +907,10 @@ export function createRite(o: Options) {
         if (approach < 1) { approach = still ? 1 : Math.min(1, approach + dt / 2.2); camera.position.lerpVectors(approachFrom, at(s).add(new THREE.Vector3(0, EYE, 0)), sm(0, 1, approach)); face(index === 0 ? live[0].focus : at(s + 9).add(new THREE.Vector3(0, EYE, 0)), dt * 2.5); }
         else {
           if (phase === "walk" && stopDone && index < stops.length - 1) { index++; return true; }
-          const passing = passers.some(P => !P.done && P.s - s < 9 && P.s - s > -1);
           const near = phase === "narrate" || s > stop - 7, wantWalk = (walkPointer || keyWalk) && (phase === "walk" || phase === "narrate") && !stopDone && s < stop;
           holdWalk = wantWalk ? holdWalk + dt : 0;
           const ahead = at(s + 4), here = at(s), slope = Math.max(0, (ahead.y - here.y) / 4);
-          const target = wantWalk ? (near ? 1.2 : (1.9 + 1.6 * sm(0, 1.8, holdWalk)) * (passing ? .62 : 1)) * (1 - .55 * gloom) * (1 - Math.min(.3, slope * 1.6)) : 0;
+          const target = wantWalk ? (near ? 1.2 : (1.9 + 1.6 * sm(0, 1.8, holdWalk))) * (1 - .55 * gloom) * (1 - Math.min(.3, slope * 1.6)) : 0;
           speed += (target - speed) * Math.min(1, dt * (wantWalk ? 2.4 : 5));
           if (still && wantWalk) { s = stop; speed = 0; }
           else if (speed > .02) { const before = s; s = Math.min(stop, s + speed * dt); walking = s > before; stride += (s - before) / .78; if (Math.floor(stride) !== Math.floor(stride - (s - before) / .78)) sound.step(here.y / 20); }
@@ -937,13 +935,8 @@ export function createRite(o: Options) {
           passed.add(key); if (s - rl.at > 30) continue; setLine(say(rl.text, lang, name)); lineUntil = t + 5.8; break; }
         if (t > lineUntil && lineUntil > 0) { setLine(""); lineUntil = 0; }
       }
-      // ── memorials walked past: a faint figure beside each as you come near, and its light going up as you pass
-      if (state === "walk" && live[0].done) for (const P of passers) {
-        if (P.done) continue; const d = P.s - s;
-        if (P.presence === undefined && d < 15) { P.presence = apparitions.presence(P.st.shadows[0], P.ghost, at(P.s - 4).add(new THREE.Vector3(0, EYE, 0))); }
-        if (d < 12 && !passed.has(`pass:${P.st.id}`) && phase === "walk") { passed.add(`pass:${P.st.id}`); const text = passLine(P); if (text) { setLine(text); lineUntil = t + 5.6; } }
-        if (d < .6) passBy(P);
-      }
+      // ── memorials walked past are part of the country: only their stars remember you went by
+      if (state === "walk" && live[0].done) for (const P of passers) if (!P.done && P.s - s < .6) passBy(P);
       // ── at a stop: what is said there, then the act
       if (state === "walk" && phase === "narrate") { const k = Math.floor((t - phaseAt) / 4.4);
         if (k < stopLines.length) setLine((t - phaseAt) % 4.4 < 3.95 ? say(stopLines[k], lang, name) : "");
@@ -951,7 +944,7 @@ export function createRite(o: Options) {
         else setLine(""); }
       if (state === "walk" && phase === "act") {
         const f = st.kind === "stone" ? figureOf(L) : null, left = S.members.filter(m => !m.done).length;
-        if (t > actLineUntil) setLine(f ? f.name : st.act[lang]);
+        if (t > actLineUntil) setLine(f ? (f.quote ? (lang === "zh" ? `${f.name}：「${f.quote}」` : `${f.name}: “${f.quote}”`) : f.name) : st.act[lang]);
         setHint(holdAct || keyAct ? riteUi.holding[lang] : `${f ? st.act[lang] + " " : ""}${riteUi.holdKeys[lang]}${G && left > 1 ? (lang === "zh" ? `　還有 ${left - 1} 位` : `  · ${left - 1} more`) : ""}`);
         const pressing = (holdAct || keyAct) && t > actReady;
         holdT = pressing ? holdT + dt : Math.max(0, holdT - dt * 2);

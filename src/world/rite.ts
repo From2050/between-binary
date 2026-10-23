@@ -178,7 +178,7 @@ export const riteUi = {
   resume: n("Continue the walk", "繼續這段路"),
   leave: n("Leave the walk", "離開這段路"),
   home: n("Return home", "回家"),
-  startTitle: n("The walk", "成年之路"),
+  startTitle: n("Passing the Fire", "傳火"),
   startEyebrow: n("05 / A rite of passage", "05 / 成年禮"),
   startText: n(
     "A torch stands by the fire. Take fire from home, and carry it along the old road — out across the open country under the aurora, to the far ridge. On the way are the memorials of three hundred thousand years of people who passed the fire on: honour each one with your fire. At the end of the road is a stone of your own. Then come home. About fifteen minutes. Headphones help.",
@@ -200,7 +200,7 @@ export const riteUi = {
   welcomeName: n("Welcome home, {name}.", "{name}歡迎回家。"),
   yourStar: n("Your star", "你的星"),
   carried: n("Walked the three-hundred-thousand-year path. From that day, carries the fire too.", "走過了三十萬年的路。從那天起，也是傳火的人。"),
-  trailhead: n("The walk · Take the torch", "成年之路 · 帶上火把"),
+  trailhead: n("Passing the Fire · Take the torch", "傳火 · 帶上火把"),
   starHint: n("A star on the walk", "這段路上的星"),
   holding: n("keep holding…", "繼續按住……"),
   anyone: n("Someone who carries the fire", "一個傳火的人"),

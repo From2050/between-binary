@@ -12,7 +12,7 @@ import { destinations } from '../../world/journey';
   <link rel="icon" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Source+Serif+4:ital,wght@0,400;1,400&family=Noto+Serif+TC:wght@400;600&family=Noto+Sans+Cuneiform&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Source+Serif+4:ital,wght@0,400;1,400&family=Noto+Serif+TC:wght@400;600&family=Noto+Sans+Cuneiform&family=LXGW+WenKai+TC:wght@400;700&family=Cinzel:wght@500;600;700&family=Noto+Sans:wght@500&family=Noto+Sans+Brahmi&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet" />
   <title>The quiet between | Between Binary</title>
 </head>
 <body>
@@ -69,7 +69,7 @@ import { destinations } from '../../world/journey';
       <input id="rite-name" maxlength="10" autocomplete="off" />
       <button id="rite-begin" class="primary"></button>
     </section>
-    <section id="rite-panel" hidden aria-label="The walk">
+    <section id="rite-panel" hidden aria-label="Passing the Fire">
       <p id="rite-year" aria-hidden="true"></p>
       <p id="rite-line" aria-live="polite"></p>
       <p id="rite-hint"></p>
@@ -89,7 +89,7 @@ import { destinations } from '../../world/journey';
     <details id="field-guide"><summary>Field guide <span aria-hidden="true">＋</span></summary><nav class="destinations" aria-label="Places along the path">
       <button id="return-path" aria-label="Return to the beginning of the path"><span aria-hidden="true">⌂</span><small>The path</small></button>
       {Object.entries(destinations).map(([id,d])=><button data-destination={id} aria-pressed="false"><span class="destination-number">{d.number}</span><span>{d.name}</span><small>{d.collection}</small></button>)}
-      <button id="rite-guide"><span class="destination-number">05</span><span id="rite-guide-name">The walk</span><small>Rite</small></button>
+      <button id="rite-guide"><span class="destination-number">05</span><span id="rite-guide-name">Passing the Fire</span><small>Rite</small></button>
     </nav>
       <p class="music-credit">Music: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100224" target="_blank" rel="noopener">Friday Morning — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
     </details>
