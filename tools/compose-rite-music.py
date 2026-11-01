@@ -2,6 +2,10 @@
 
 Everything is synthesized here: wavetable string ensembles, a formant choir, a modal piano, harp, celesta,
 timpani, and noise-based wind, crickets, owls and embers, all through one synthetic hall. No samples, no downloads.
+The ambience follows history along the road: wind and wolves in deep time, crickets and a cow bell by the fields,
+the murmur and chisels of the first cities, war drums and horses, temple bells and chanting, the sea and timbers
+of the age of sail, clocks and bells, steam and factories, then the wars (guns, sirens, aircraft, fire), the quiet
+after them, and the hum of the modern world.
 It writes public/audio/rite/<stem>.mp3 and manifest.json, and is meant to be replaced stem by stem with
 recorded or generated music later (see docs/RITE_AUDIO.md for the cue sheet).
 
@@ -342,6 +346,88 @@ def crackle(n, rate, level, seed):
     for i in r.integers(0, n - 2000, int(rate * n / SR)):
         k = int(r.uniform(.001, .006) * SR); out[i:i + k] += (r.standard_normal(k) * np.exp(-np.arange(k) / (k * .3)) * r.uniform(.2, 1) ** 2).astype(np.float32)
     return highpass(out, 900) * level
+def put(out, sig, at, pan=0.0, gain=1.0):
+    """add a sound into a loop at `at` seconds, wrapping past the end back into the start"""
+    n = out.shape[1]; i = int(at * SR) % n; ang = (pan + 1) * np.pi / 4
+    for c, k in ((0, np.cos(ang) * 1.4142), (1, np.sin(ang) * 1.4142)):
+        m = min(len(sig), n - i); out[c, i:i + m] += sig[:m] * k * gain
+        if m < len(sig): out[c, :len(sig) - m] += sig[m:] * k * gain
+def far(out, wet=.5, cutoff=2500):
+    """put a layer at a distance: soften its top and give it the hall, circularly so the loop stays seamless"""
+    n = out.shape[1]; res = np.zeros_like(out)
+    for c in range(2):
+        h = np.zeros(n, np.float32); h[:HALL.shape[1]] = HALL[c][:n]
+        rev = np.fft.irfft(np.fft.rfft(out[c]) * np.fft.rfft(h), n) * .06
+        res[c] = lowpass(out[c] * (1 - wet) + rev * wet * 6, cutoff)
+    return res.astype(np.float32)
+def burst(n_s, lo, hi, decay, seed):
+    r = np.random.default_rng(seed); n = int(n_s * SR); t = np.arange(n) / SR
+    return (bandpass(r.standard_normal(n), lo, hi) * np.exp(-t / decay)).astype(np.float32)
+def glide(f0, f1, dur, harm=(1, .3, .1), vib=0.0, vibf=5.0):
+    n = int(dur * SR); t = np.arange(n) / SR; f = f0 + (f1 - f0) * (t / dur) + vib * np.sin(2 * np.pi * vibf * t)
+    ph = 2 * np.pi * np.cumsum(f) / SR; return sum(a * np.sin((k + 1) * ph) for k, a in enumerate(harm)).astype(np.float32)
+def howl(level):  # a wolf, far off: a rising cry that falls away
+    d = 3.2; n = int(d * SR); t = np.arange(n) / SR; f = 420 + 260 * np.sin(np.pi * np.minimum(1, t / 2.4)) ** .7 - 90 * (t / d) ** 2
+    ph = 2 * np.pi * np.cumsum(f + 6 * np.sin(2 * np.pi * 5.5 * t)) / SR
+    return (lowpass(np.sin(ph) + .2 * np.sin(2 * ph), 1600) * np.sin(np.pi * t / d) ** 1.2 * level).astype(np.float32)
+def thud(freq, decay, level, noise=.3, seed=0):  # drums, hooves, artillery: a low tone that drops, with a slap
+    d = decay * 5; n = int(d * SR); t = np.arange(n) / SR; ph = 2 * np.pi * np.cumsum(freq * (1 + .6 * np.exp(-t / .02))) / SR
+    r = np.random.default_rng(seed); slap = lowpass(r.standard_normal(n), freq * 8) * np.exp(-t / (decay * .25)) * noise
+    return ((np.sin(ph) * np.exp(-t / decay) + slap) * level).astype(np.float32)
+def murmur(n, voices, level, seed):  # a crowd far off: many voices, none of them words
+    r = np.random.default_rng(seed); out = np.zeros((2, n), np.float32)
+    for v in range(voices):
+        syll = np.clip(np.convolve(r.random(int(n / SR * 5) + 2) > .45, np.ones(1), "same"), 0, 1).astype(np.float32)
+        env = np.interp(np.arange(n), np.linspace(0, n, len(syll)), syll) * (.6 + .4 * periodic(n, r.integers(1, 4), r.uniform(0, 6)))
+        f = r.uniform(380, 900); voice = bandpass(r.standard_normal(n), f * .7, f * 1.6) + .5 * bandpass(r.standard_normal(n), f * 2.4, f * 3.4)
+        pan = r.uniform(-.8, .8); a = (pan + 1) * np.pi / 4; out[0] += voice * env * np.cos(a) * level; out[1] += voice * env * np.sin(a) * level
+    return out
+def chisel(level, seed):  # iron on stone
+    r = np.random.default_rng(seed); n = int(.18 * SR); t = np.arange(n) / SR
+    ring = sum(np.sin(2 * np.pi * f * t) * np.exp(-t / d) * a for f, d, a in ((r.uniform(2600, 3400), .03, 1), (r.uniform(4800, 5600), .015, .5)))
+    return ((ring + bandpass(r.standard_normal(n), 2000, 7000) * np.exp(-t / .006)) * level).astype(np.float32)
+def horn(m, dur, level):  # a war horn, far off
+    n = int(dur * SR); t = np.arange(n) / SR; f = mtof(m) * (1 - .03 * np.exp(-t / .15)); ph = 2 * np.pi * np.cumsum(f) / SR
+    tone = sum(np.sin(k * ph) / k ** .8 for k in range(1, 8)); return (lowpass(tone, 1400) * envelope(n, dur, .25, .8) * level).astype(np.float32)
+def creak(level, seed):  # ship's timbers working
+    r = np.random.default_rng(seed); d = r.uniform(.6, 1.4); n = int(d * SR); t = np.arange(n) / SR
+    pulses = (np.sin(2 * np.pi * np.cumsum(r.uniform(18, 40) * (1 + .5 * np.sin(np.pi * t / d))) / SR) > .97).astype(np.float32)
+    return (bandpass(pulses, 300, 1600) * np.sin(np.pi * t / d) * level).astype(np.float32)
+def tick(level, hi=True):
+    n = int(.03 * SR); t = np.arange(n) / SR; return ((np.sin(2 * np.pi * (3200 if hi else 2600) * t) * np.exp(-t / .004)) * level).astype(np.float32)
+def chirp(level, seed):  # a small bird at first light
+    r = np.random.default_rng(seed); parts = []
+    for k in range(r.integers(2, 5)):
+        d = r.uniform(.05, .12); f0 = r.uniform(3200, 4600); parts.append(glide(f0, f0 + r.uniform(-900, 900), d, (1, .1)) * np.hanning(int(d * SR))); parts.append(np.zeros(int(r.uniform(.04, .1) * SR), np.float32))
+    return (np.concatenate(parts) * level).astype(np.float32)
+def gunfire(level, seed):  # a machine gun, far away: a short run of cracks
+    r = np.random.default_rng(seed); count = r.integers(6, 16); gap = r.uniform(.075, .11); n = int((count * gap + .4) * SR); out = np.zeros(n, np.float32)
+    for k in range(count):
+        b = burst(.25, 400, 3200, .02, seed * 31 + k) * r.uniform(.6, 1); i = int(k * gap * SR); out[i:i + len(b)] += b[: n - i]
+    return out * level
+def shell(level, seed, near=False):  # artillery: a crump and a long roll
+    r = np.random.default_rng(seed); n = int(5 * SR); t = np.arange(n) / SR
+    roll = lowpass(r.standard_normal(n), 140 if not near else 400) * np.exp(-t / (1.4 if not near else .9))
+    sub = np.sin(2 * np.pi * np.cumsum(46 * (1 + .8 * np.exp(-t / .05))) / SR) * np.exp(-t / .6)
+    crack = highpass(r.standard_normal(n), 900) * np.exp(-t / .03) * (.5 if near else 0)
+    return ((roll * 2.2 + sub + crack) * level).astype(np.float32)
+def siren(seconds, level):  # an air-raid siren rising and falling
+    n = int(seconds * SR); t = np.arange(n) / SR; f = 330 + 420 * (.5 - .5 * np.cos(2 * np.pi * t / (seconds / 2.5))) ** .8
+    ph = 2 * np.pi * np.cumsum(f) / SR; tone = np.sin(ph) + .35 * np.sin(2 * ph) + .15 * np.sin(3 * ph)
+    return (lowpass(tone, 2200) * envelope(n, seconds, 4, 6) * level).astype(np.float32)
+def aircraft(seconds, level, seed):  # engines passing high overhead, the pitch falling as they go
+    r = np.random.default_rng(seed); n = int(seconds * SR); t = np.arange(n) / SR; x = (t / seconds - .5) * 2
+    f = 92 * (1 - .06 * np.tanh(x * 3)); tone = 0
+    for k, det in ((1, 1), (1, 1.012), (2, .997), (3, 1.004)): tone = tone + np.sin(2 * np.pi * np.cumsum(f * k * det) / SR) / k
+    hum = lowpass(tone + .3 * bandpass(r.standard_normal(n), 200, 900), 900); return (hum * np.exp(-(x * 1.6) ** 2) * level).astype(np.float32)
+def whistle(level):  # a steam whistle, two notes together
+    d = 1.8; n = int(d * SR); t = np.arange(n) / SR
+    tone = glide(640, 655, d, (1, .4, .2)) + glide(770, 785, d, (1, .3)); return (lowpass(tone + .3 * bandpass(np.random.default_rng(4).standard_normal(n), 600, 3000), 2600) * envelope(n, d, .12, .5) * level).astype(np.float32)
+def radio(n_s, level, seed):  # a wireless somewhere: a voice you cannot follow, under static
+    r = np.random.default_rng(seed); n = int(n_s * SR); out = murmur(n, 1, 1, seed)[0] * 3
+    static = bandpass(r.standard_normal(n), 1500, 5000) * .12 * (.6 + .4 * np.sin(2 * np.pi * .3 * np.arange(n) / SR))
+    return (bandpass(out, 300, 2800) + static) * envelope(n, n_s, .5, .8) * level
+
 def ambience(kind, seconds=60.0):
     n = int(seconds * SR); out = np.zeros((2, n), np.float32)
     def wind(lo, hi, level, seed, tilt=-1.2):
@@ -356,6 +442,78 @@ def ambience(kind, seconds=60.0):
     elif kind == "ash":
         wind(40, 500, .2, 11, -2); wind(500, 3000, .03, 13)
         for c in range(2): out[c] += crackle(n, 7, .3, 15 + c)
+    elif kind == "deep":       # deep time: wind over the grass, wolves, a drum somewhere far off
+        wind(70, 1800, .16, 41); out += crickets(n, 6, .01, 43, (4400, 5600))
+        far_ = np.zeros_like(out)
+        for at, pan in ((9, -.7), (31, .6), (47, -.2)): put(far_, howl(.09), at, pan)
+        for k, at in enumerate(np.arange(18, 30, .62)): put(far_, thud(105, .09, .05 if k % 4 else .08, .5, k), at + (k % 2) * .08, .3)
+        out += far(far_, .65, 2000)
+    elif kind == "fields":   # the first fields: crickets thick, frogs, a cow bell, a dog in a village
+        wind(90, 2200, .1, 51); out += crickets(n, 16, .018, 53, (3800, 6200)); out += crickets(n, 5, .012, 54, (1300, 1700))
+        far_ = np.zeros_like(out)
+        for at in (6, 6.9, 22, 22.5, 23.4, 44): put(far_, struck(84, [1, 1.48, 2.1, 2.9], [.6, .35, .2, .12], [1, .5, .3, .15], .05, 1.2), at, .5)
+        for at in (14, 14.35, 38, 38.4, 38.8): put(far_, burst(.2, 500, 1600, .05, int(at * 10)), at, -.6, .12)
+        out += far(far_, .6, 2400)
+    elif kind == "city":     # the first cities: a crowd murmuring, chisels on stone, a lyre's note now and then
+        wind(80, 1200, .06, 61); out += far(murmur(n, 14, .02, 63), .6, 1800)
+        near_ = np.zeros_like(out)
+        for k, at in enumerate(np.arange(1, seconds, .7)):
+            if (k // 6) % 3 != 2: put(near_, chisel(.05, k), at + np.random.default_rng(k).uniform(0, .1), -.4 if (k // 18) % 2 else .5)
+        out += far(near_, .4, 6000)
+    elif kind == "march":    # armies: drums, horns and horses, never quite in sight
+        wind(60, 900, .1, 71)
+        far_ = np.zeros_like(out)
+        for k, at in enumerate(np.arange(0, seconds, .8)): put(far_, thud(62, .16, .11 if k % 2 == 0 else .07, .4, k), at, -.3)
+        for at, m in ((8, 50), (8.9, 55), (33, 50), (34.2, 57)): put(far_, horn(m, 1.6, .05), at, .4)
+        for g, at in enumerate((16, 44)):
+            for k in range(36): put(far_, thud(140, .03, .05, .7, 900 + k), at + (k // 3) * .38 + (k % 3) * .09, .7 - g * 1.2)
+        out += far(far_, .7, 1500)
+    elif kind == "temple":   # the awakening: bronze bells slowly, a low chant
+        wind(90, 1500, .08, 81)
+        far_ = np.zeros_like(out)
+        for at, m in ((3, 52), (21, 47), (39, 52), (52, 45)): put(far_, bell(m, .16), at, (at % 3 - 1) * .5)
+        chant = choir(45, seconds - 2, .12, "o", voices=5, attack=6, release=6) + choir(52, seconds - 2, .07, "o", voices=4, attack=8, release=6)
+        put(far_, chant * .6, 1, 0); out += far(far_, .7, 1600)
+    elif kind == "sea":      # the age of sail: the sea, timbers working, a rope's knock
+        swell = (.5 + .5 * periodic(n, 6)) ** 2
+        for c in range(2): out[c] += lowpass(shaped_noise(n, 40, 2600, -1.4, 91 + c), 1400) * (.12 + .3 * swell)
+        far_ = np.zeros_like(out)
+        for at in np.arange(2, seconds, 4.3): put(far_, creak(.05, int(at * 7)), at, np.random.default_rng(int(at)).uniform(-.6, .6))
+        out += far(far_, .4, 2000)
+    elif kind == "clock":    # the new science: a clock, a church bell across the fields
+        wind(90, 1500, .07, 101)
+        for k, at in enumerate(np.arange(0, seconds, 1.0)): put(out, tick(.025, k % 2 == 0), at, .5)
+        far_ = np.zeros_like(out)
+        for at in (5, 11, 17, 41, 47): put(far_, bell(43, .2), at, -.5)
+        out += far(far_, .7, 1800)
+    elif kind == "industry": # steam and iron: a train passing far off, a factory's hum
+        for c in range(2): out[c] += (np.sin(2 * np.pi * 50 * np.arange(n) / SR) * .015 + np.sin(2 * np.pi * 100 * np.arange(n) / SR) * .01 + lowpass(shaped_noise(n, 40, 400, -1, 111 + c), 300) * .05).astype(np.float32)
+        far_ = np.zeros_like(out)
+        for k in range(120): put(far_, burst(.3, 200, 1800, .06, 1200 + k), 8 + k * max(.16, .45 - k * .004), (k / 120 - .5) * 1.4, .1)
+        for at in (12, 40): put(far_, whistle(.08), at, .2)
+        out += far(far_, .6, 2200)
+    elif kind == "war":      # the wars: guns far and near, a siren, aircraft overhead, fire close by
+        wind(40, 500, .14, 121, -2)
+        for c in range(2): out[c] += lowpass(shaped_noise(n, 20, 300, -2, 123 + c), 160) * .35 * (.6 + .4 * gusts(n, 125 + c)) + crackle(n, 9, .25, 127 + c)
+        far_ = np.zeros_like(out); r = np.random.default_rng(131)
+        t = 1.0
+        while t < seconds: put(far_, shell(.3 if r.random() > .15 else .5, int(t * 10), near=r.random() > .85), t, r.uniform(-.9, .9)); t += r.uniform(1.4, 4.5)
+        for k, at in enumerate((7, 19, 26, 43, 51)): put(far_, gunfire(.18, k + 7), at, r.uniform(-.8, .8))
+        put(far_, siren(28, .07), 3, -.4); put(far_, aircraft(22, .2, 133), 30, .3)
+        out += far(far_, .55, 1800)
+    elif kind == "after":    # after the wars: the guns quiet, wind, the first birds, a bell for peace
+        wind(80, 1600, .1, 141)
+        for k, at in enumerate((4, 9, 9.6, 21, 33, 33.5, 46, 55)): put(out, chirp(.03, k + 3), at, np.random.default_rng(k).uniform(-.8, .8))
+        far_ = np.zeros_like(out)
+        for at in (12, 18, 24): put(far_, bell(48, .14), at, .4)
+        out += far(far_, .7, 1800)
+    elif kind == "modern":   # today: a city's hum far below, a jet very high, a voice on the air
+        wind(100, 1400, .1, 151)
+        for c in range(2): out[c] += lowpass(shaped_noise(n, 30, 600, -1.2, 153 + c), 400) * .1 * (.8 + .2 * gusts(n, 155 + c))
+        far_ = np.zeros_like(out)
+        for c in range(2): far_[c] += bandpass(shaped_noise(n, 300, 4000, -.6, 157 + c), 500, 3000) * (np.exp(-((np.arange(n) / SR - 20) / 9) ** 2)) * .12
+        for at in (8, 37): put(far_, radio(5, .05, int(at)), at, -.5)
+        out += far(far_, .6, 2600)
     elif kind == "crest":
         wind(100, 1400, .15, 21); wind(700, 1500, .05, 23, 0)
         for c in range(2): out[c] += bandpass(shaped_noise(n, 600, 2200, 0, 31 + c), 900, 1300) * periodic(n, 3, c) ** 2 * .05
@@ -381,7 +539,7 @@ def write(name, audio, loop, level):
         p = int(PAD * SR); audio = np.concatenate([audio[:, -p:], audio, audio[:, :2 * p]], 1)
     OUT.mkdir(parents=True, exist_ok=True); wav = OUT / f"{name}.wav"
     wavfile.write(wav, SR, (audio.T * 32767).astype(np.int16))
-    subprocess.run([str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "128k", str(OUT / f"{name}.mp3")], check=True)
+    subprocess.run([str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "96k" if name.startswith("amb-") else "128k", str(OUT / f"{name}.mp3")], check=True)
     wav.unlink()
     length = (audio.shape[1] - (3 * int(PAD * SR) if loop else 0)) / SR
     print(f"{name:10s} {length:6.1f}s  rms {rms:.3f}  {(OUT / f'{name}.mp3').stat().st_size // 1024} KB")
@@ -390,7 +548,9 @@ def write(name, audio, loop, level):
 CUES = {"ember": (cue_ember, True, 1), "forest": (cue_forest, True, 1), "fields": (cue_fields, True, .9), "voices": (cue_voices, True, .85),
         "ash": (cue_ash, True, 1), "candle": (cue_candle, True, .9), "ascent": (cue_ascent, True, .85), "finale": (cue_finale, False, 1),
         "hold": (cue_hold, True, .8), "homeward": (cue_homeward, False, .95)}
-AMB = {"amb-forest": ("forest", .9), "amb-open": ("open", .8), "amb-ash": ("ash", .9), "amb-crest": ("crest", .8)}
+AMB = {"amb-forest": ("forest", .9), "amb-open": ("open", .8), "amb-ash": ("ash", .9), "amb-crest": ("crest", .8),
+       "amb-deep": ("deep", .85), "amb-fields": ("fields", .8), "amb-city": ("city", .8), "amb-march": ("march", .8), "amb-temple": ("temple", .8),
+       "amb-sea": ("sea", .8), "amb-clock": ("clock", .75), "amb-industry": ("industry", .8), "amb-war": ("war", 1), "amb-after": ("after", .8), "amb-modern": ("modern", .75)}
 
 if __name__ == "__main__":
     only = set(sys.argv[1:]); manifest_path = OUT / "manifest.json"

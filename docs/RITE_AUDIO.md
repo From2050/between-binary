@@ -161,7 +161,20 @@ python tools/compose-rite-music.py ash finale # 只重做其中幾段
 | `amb-open` | 麥田、曠野 | 草原風、蟋蟀群 | 夏夜草原，蟋蟀與微風：`summer night meadow crickets`、`field night ambience` |
 | `amb-ash` | 灰燼段 | 低沉的風、餘燼劈啪聲 | 餘燼與燜燒聲、低沉陣風：`embers crackling smoulder`、`wind howl low`。可另加極遠的悶雷或砲聲（音量很小）：`distant thunder rumble` |
 | `amb-crest` | 最後的上坡與山脊 | 高處的風、口哨般的風聲 | 山脊或高原的風：`mountain wind ridge`、`windy plateau` |
+| `amb-deep` | 遠古（約 34–148 m：火邊的骨頭、手印、骨針） | 草原風、遠方狼嚎三聲、一段遙遠的手鼓 | 夜晚草原的風，狼嚎：`wolf howl distant`、`grassland night wind`；手鼓：`frame drum distant` |
+| `amb-fields` | 最早的田（148–200 m） | 濃密的蟋蟀、青蛙、牛鈴、村莊的狗吠 | `summer night crickets frogs`、`cowbell distant`、`dog barking distant village` |
+| `amb-city` | 最早的城市（200–258 m） | 遠方人群的低語、鑿石聲 | `crowd murmur distant`、`stone chisel hammer`（不要聽得出語言） |
+| `amb-march` | 戰車輪一帶（258–292 m） | 遠方的戰鼓、號角、馬蹄 | `war drums distant`、`ancient horn`、`horses galloping distant` |
+| `amb-temple` | 四位哲人（292–352 m） | 青銅鐘慢慢敲、低沉誦經 | `temple bell`、`monks chanting distant`、`singing bowl` |
+| `amb-sea` | 船錨一帶（352–392 m） | 海浪起伏、船木咯吱聲 | `ship creaking wood`、`waves sea calm night` |
+| `amb-clock` | 天文學家們（392–424 m） | 鐘擺滴答、遠處教堂鐘聲 | `pendulum clock ticking`、`church bell distant toll` |
+| `amb-industry` | 進入灰燼前（424–444 m） | 蒸汽火車的噴氣與汽笛、工廠低鳴 | `steam train distant whistle`、`factory hum` |
+| `amb-war` | 世界大戰（432 m 到你把火傳給蠟燭） | 遠近不一的砲擊、機槍、空襲警報、飛機引擎、燃燒聲 | `artillery distant`、`machine gun distant`、`air raid siren`、`ww2 bomber flyover`、`fire burning`（只取聲音，不要有人聲） |
+| `amb-after` | 戰後（蠟燭點亮後到約 512 m） | 輕柔的風、清晨的鳥、遠方的鐘聲 | `dawn birds sparse`、`church bell peace distant` |
+| `amb-modern` | 現代（510–548 m） | 遠方城市低鳴、高空噴射機、收音機雜訊人聲 | `city distant hum night`、`jet high altitude`、`radio static voice` |
 | `steps` | 腳步聲（每 0.5 秒一步，共 8 步的切片） | 低頻落地＋細碎沙土 | 走在森林土路與落葉上的腳步，8–10 步，間隔清楚：`footsteps forest path dirt`、`footsteps leaves walking` |
 | （程式即時合成） | 火把與石堆的劈啪聲、點燃聲、鐘聲 | 合成 | 營火劈啪聲循環 30 s：`campfire crackle close`；火把揮動或點燃：`torch ignite whoosh` |
+
+依時代變換的環境音（`amb-deep` 到 `amb-modern`）只在你走近時才下載，靜默 25 秒後就釋放，所以同時佔用記憶體的只有聽得到的幾段。戰爭的聲音在你把火傳給蠟燭後停下，換成戰後的寧靜。
 
 給錄音的規格：WAV 或 FLAC、44.1 kHz 以上，盡量沒有人聲、車聲、飛機聲。下載後放進 `assets/audio-raw/` 給我，我會剪成可循環的段落、統一音量，再換掉合成版本。

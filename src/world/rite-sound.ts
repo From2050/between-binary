@@ -15,20 +15,31 @@ export function createRiteSound() {
   let manifest: Record<string, Stem> | null = null, loading = false, ready = false;
   const buffers = new Map<string, AudioBuffer>(), gains = new Map<string, GainNode>(), targets = new Map<string, number>();
   const shots = new Map<string, { source: AudioBufferSourceNode; gain: GainNode }>();
+  // The sounds of each age along the road are many and long, so each is fetched only as you come near it and let go
+  // once it has been silent a while: only the few you can hear are ever held in memory.
+  const sources = new Map<string, AudioBufferSourceNode>(), fetching = new Set<string>(), silentSince = new Map<string, number>();
+  const nearby = (name: string) => name.startsWith("amb-") && name !== "amb-forest";
+  function startLoop(name: string) {
+    const stem = manifest![name], c = ctx!; if (gains.has(name)) return;
+    const source = c.createBufferSource(); source.buffer = buffers.get(name)!; source.loop = true; source.loopStart = stem.start; source.loopEnd = stem.start + stem.length;
+    const gain = c.createGain(); gain.gain.value = 0; source.connect(gain); gain.connect(name.startsWith("amb-") ? ambBus : musicBus);
+    source.start(c.currentTime + .05, stem.start + (name.startsWith("amb-") ? Math.random() * stem.length : 0)); gains.set(name, gain); sources.set(name, source); targets.delete(name);
+  }
+  async function fetchStem(name: string) {
+    if (!ctx || buffers.has(name) || fetching.has(name)) return; fetching.add(name);
+    try { const data = await (await fetch(`/audio/rite/${name}.mp3`)).arrayBuffer(); buffers.set(name, await ctx.decodeAudioData(data)); if (manifest?.[name].loop) startLoop(name); }
+    catch (error) { console.warn(`The walk's sound ${name} could not load`, error); }
+    finally { fetching.delete(name); }
+  }
+  function release(name: string) { sources.get(name)?.stop(); sources.delete(name); gains.get(name)?.disconnect(); gains.delete(name); buffers.delete(name); targets.delete(name); silentSince.delete(name); }
   async function load() {
     if (loading || !ctx) return; loading = true;
     try {
       manifest = await (await fetch("/audio/rite/manifest.json")).json() as Record<string, Stem>;
-      await Promise.all(Object.keys(manifest).map(async name => {
+      await Promise.all(Object.keys(manifest).filter(name => !nearby(name)).map(async name => {
         const data = await (await fetch(`/audio/rite/${name}.mp3`)).arrayBuffer(); buffers.set(name, await ctx!.decodeAudioData(data));
       }));
-      const at = ctx.currentTime + .1;
-      for (const [name, stem] of Object.entries(manifest)) {
-        if (!stem.loop) continue;
-        const source = ctx.createBufferSource(); source.buffer = buffers.get(name)!; source.loop = true; source.loopStart = stem.start; source.loopEnd = stem.start + stem.length;
-        const gain = ctx.createGain(); gain.gain.value = 0; source.connect(gain); gain.connect(name.startsWith("amb-") ? ambBus : musicBus);
-        source.start(at, stem.start + (name.startsWith("amb-") ? Math.random() * stem.length : 0)); gains.set(name, gain);
-      }
+      for (const [name, stem] of Object.entries(manifest)) if (stem.loop && buffers.has(name)) startLoop(name);
       ready = true; wind.gain.setTargetAtTime(0, ctx.currentTime, 2);
     } catch (error) { console.warn("The walk's music could not load", error); loading = false; }
   }
@@ -65,6 +76,8 @@ export function createRiteSound() {
     /** call from a click/keydown so the context may start */
     wake() { const c = ensure(); if (c && c.state === "suspended") void c.resume(); if (c && enabled()) void load(); },
     get ready() { return ready; },
+    /** for tests: what is loaded and what can be heard */
+    get heard() { return { loaded: [...buffers.keys()].filter(nearby), playing: [...targets].filter(([, v]) => v > .02).map(([k, v]) => `${k}:${v.toFixed(2)}`) }; },
     /** torch: how brightly you carry fire; ash: the burnt country; open: out of the trees; mix: the score and ambience */
     update(torch: number, ash: number, open: number, mix?: RiteMix) {
       if (!ctx) return; const on = enabled() ? 1 : 0, t = ctx.currentTime;
@@ -73,6 +86,9 @@ export function createRiteSound() {
       crackle.gain.setTargetAtTime(torch * .2, t, .2);
       if (!ready) { wind.gain.setTargetAtTime(.05 + open * .05 + ash * .22, t, 1.6); windFilter.Q.value = .6 + ash * .8; }
       if (!ready || !manifest || !mix) return;
+      for (const [key, level] of Object.entries(mix.ambience)) { const name = `amb-${key}`; if (level > 0 && manifest[name] && !buffers.has(name)) void fetchStem(name); }
+      for (const name of [...gains.keys()]) { if (!nearby(name)) continue; const want = mix.ambience[name.slice(4)] ?? 0;
+        if (want > 0) silentSince.delete(name); else if (!silentSince.has(name)) silentSince.set(name, t); else if (t - silentSince.get(name)! > 25) release(name); }
       for (const [name, gain] of gains) {
         const amb = name.startsWith("amb-"), want = ((amb ? mix.ambience[name.slice(4)] : mix.music[name]) ?? 0) * manifest[name].level * (amb ? 1 : mix.level ?? 1);
         const before = targets.get(name) ?? 0;

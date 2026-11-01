@@ -860,7 +860,7 @@ export function createRite(o: Options) {
     look.position.copy(camera.position); look.lookAt(target); camera.quaternion.slerp(look.quaternion, Math.min(1, rate)); api.syncAngles();
   }
   if (new URLSearchParams(location.search).has("ritedebug")) (window as unknown as { __rite: unknown }).__rite = {
-    get state() { return { state, index, stops: stops.length, memorial: current().st.id, at: +stops[index].stand.toFixed(1), phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), lampsLit: lamps.filter(c => c.lit > 0).length, lamps: N, met: stars.filter(x => x.metAt > -1).length, stars: stars.length, civWoken, year: yearText, audio: sound.ready, sky: +o.civ.group.rotation.y.toFixed(4), ft: finaleAt >= 0 ? +(time - finaleAt).toFixed(1) : -1 }; },
+    get state() { return { state, index, stops: stops.length, memorial: current().st.id, at: +stops[index].stand.toFixed(1), phase, s: +s.toFixed(1), length: +LEN.toFixed(1), speed: +speed.toFixed(2), gloom: +gloom.toFixed(2), lampsLit: lamps.filter(c => c.lit > 0).length, lamps: N, met: stars.filter(x => x.metAt > -1).length, stars: stars.length, civWoken, year: yearText, audio: sound.ready, heard: sound.heard, sky: +o.civ.group.rotation.y.toFixed(4), ft: finaleAt >= 0 ? +(time - finaleAt).toFixed(1) : -1 }; },
     complete: (i: number) => complete(i), wake: (i: number) => wake(i, false), go: (d: number) => { s = d; }, home: () => returnHome(),
     /** skip to a stop, as if everything before it had been honoured */
     goStop: (k: number) => { for (let j = 1; j < k; j++) stops[j].members.forEach(m => { m.done = true; m.doneAt = time; }); passers.forEach(P => { if (P.s < stops[k].stand - 12) P.done = true; }); index = k; s = Math.max(0, stops[k].stand - 10); phase = "walk"; },
@@ -879,7 +879,13 @@ export function createRite(o: Options) {
       music.ash = ashDone ? 0 : sm(420, 440, s);
       music.candle = ashDone ? 1 - sm(494, 518, s) : 0;
       music.ascent = ashDone ? sm(494, 518, s) * (.55 + .45 * sm(zones.ascent[0], LEN, s)) : 0;
-      ambience.forest = 1 - sm(28, 56, s); ambience.open = sm(28, 56, s) * (1 - sm(425, 440, s)); ambience.ash = sm(425, 440, s) * (1 - sm(500, 515, s)); ambience.crest = sm(500, 515, s);
+      // the sound of each age, under the music: it changes as history does, and the guns fall silent when you give your flame away
+      const era = (from: number, to: number) => span(from, to, 9);
+      ambience.forest = 1 - sm(28, 56, s); ambience.open = .3 * sm(28, 56, s) * (1 - sm(420, 440, s));
+      ambience.deep = era(34, 148); ambience.fields = era(148, 200); ambience.city = era(200, 258); ambience.march = era(258, 292);
+      ambience.temple = era(292, 352); ambience.sea = era(352, 392); ambience.clock = era(392, 424); ambience.industry = era(424, 444) * (ashDone ? 0 : 1);
+      ambience.war = ashDone ? 0 : sm(432, 452, s); ambience.ash = .5 * sm(425, 440, s) * (1 - sm(500, 515, s));
+      ambience.after = ashDone ? era(474, 512) : 0; ambience.modern = era(510, 548) * (ashDone ? 1 : 0); ambience.crest = sm(540, 560, s);
     }
     if (state === "finale") { const ft = t - finaleAt; music.finale = 1; music.hold = sm(68, 75, ft); ambience.crest = 1 - sm(4, 20, ft) * .5; }
     if (state === "return") { const rt = t - returnAt; music.homeward = 1; music.finale = 1 - sm(0, 4, rt); music.hold = 0; ambience.open = .5 * (1 - sm(28, 38, rt)); }

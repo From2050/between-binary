@@ -88,5 +88,71 @@
     "length": 4.0,
     "start": 0,
     "level": 1
+  },
+  "amb-deep": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.85
+  },
+  "amb-fields": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-city": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-march": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-temple": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-sea": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-clock": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.75
+  },
+  "amb-industry": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-war": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 1
+  },
+  "amb-after": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.8
+  },
+  "amb-modern": {
+    "loop": true,
+    "length": 60.0,
+    "start": 0.25,
+    "level": 0.75
   }
 }
