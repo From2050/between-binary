@@ -498,6 +498,10 @@ export function createExploration(
     get begun() {
       return begun;
     },
+    /** the opening has finished (or been skipped): the world is still and the visitor is free */
+    get settled() {
+      return begun && !opening;
+    },
     dispose() {
       opening?.finish(false);
       opening = null;

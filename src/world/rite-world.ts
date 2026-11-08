@@ -148,7 +148,13 @@ function textPlane(width: number, height: number) {
   return { mesh, draw };
 }
 
-export function createRite(o: Options) {
+/** wait for the next frame, so building the walk never holds the screen still for long */
+let hurry = false;
+const breathe = () => hurry ? Promise.resolve() : new Promise<void>(resolve => setTimeout(resolve, 16));
+/** the visitor has asked for the walk: finish building it as fast as possible, without pausing between pieces */
+export function hurryRite() { hurry = true; }
+
+export async function createRite(o: Options) {
   const { scene, camera, glowTexture, height } = o;
   let lang: Lang = (() => {
     try { const v = localStorage.getItem("bb-lang"); if (v === "en" || v === "zh") return v; } catch { /* storage unavailable */ }
@@ -189,7 +195,9 @@ export function createRite(o: Options) {
   const clear: [number, number, number][] = [[armillaryAt.x, armillaryAt.z, 3]];
   riteStations.forEach((st, i) => { if (st.kind !== "relic" && st.kind !== "stone") return; const q = placeOf(i).pos; clear.push([q.x, q.z, st.id === "painter" ? 5 : 3.2]); if (st.pass) { const r = at(st.s); clear.push([r.x, r.z, 2.6]); } });
   riteStops.forEach(stop => { const q = at(stop.stand); clear.push([q.x, q.z, 3.4]); });
+  await breathe();
   const land = addRoadside({ scene, height, wind: o.wind, small: o.small, forest: o.forest, rock: o.rock, grass: o.grass, ferns: o.ferns, grasses: o.grasses, clear });
+  await breathe();
   const air = addAtmosphere({ scene, height, small: o.small });
   const targets: THREE.Object3D[] = [];
   const stone = new THREE.MeshStandardMaterial({ color: 0x6d675d, roughness: 1 });
@@ -223,7 +231,7 @@ export function createRite(o: Options) {
   // ─── The torch you carry: your only tool ───
   scene.add(camera);
   const torch = new THREE.Group(); torch.visible = false; camera.add(torch);
-  const torchRest = new THREE.Vector3(.34, -.46, -.7), torchRaised = new THREE.Vector3(.16, -.02, -.62), torchOffered = new THREE.Vector3(.08, -.34, -.78);
+  const torchHere = new THREE.Vector3(), torchRest = new THREE.Vector3(.34, -.46, -.7), torchRaised = new THREE.Vector3(.16, -.02, -.62), torchOffered = new THREE.Vector3(.08, -.34, -.78);
   const torchFlame = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, uniforms: { uTime0: { value: 0 }, uGlobal: { value: 1 }, uWind: { value: 0 } },
     vertexShader: `varying vec2 vUv; varying float vInt; varying float vSeed; void main(){ vUv = uv; vInt = 1.; vSeed = 0.; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`, fragmentShader: instancedFire.fragment });
   { const stick = new THREE.Mesh(new THREE.CylinderGeometry(.016, .022, .5, 8), darkWood); stick.position.y = -.2; torch.add(stick);
@@ -251,16 +259,19 @@ export function createRite(o: Options) {
   const lampSpots: { L?: Live; local: THREE.Vector3; world?: THREE.Vector3; flame: number; pool: number; bowl: boolean; light?: number }[] = [];
   const myHands: THREE.Mesh[] = [];
 
+  await breathe();
   // those we can name: each memorial in the form their own people would have made, carved in their own script
-  const carvings: (() => void)[] = [];
+  const carvings: { L: Live; paint: () => void; done: boolean }[] = [];
   for (const L of live) {
     if (L.st.kind !== "stone") continue;
+    await breathe();
     const nm = namedMemorial(L.st.id, { rock: rockMesh, shadow: shadowCanvas }); if (!nm) continue;
     nm.group.rotation.y = (L.i % 3 - 1) * .05; L.group.add(nm.group);
     const hit = hitbox(new THREE.BoxGeometry(nm.hit.x, nm.hit.y, nm.hit.z), "gate", L.i); hit.position.y = nm.hit.y / 2; L.group.add(hit);
-    L.top = nm.top; L.focus.y = L.pos.y + nm.focus; L.ghost.set(...nm.ghost); L.wide = nm.hit.x / 2; carvings.push(...nm.paint);
+    L.top = nm.top; L.focus.y = L.pos.y + nm.focus; L.ghost.set(...nm.ghost); L.wide = nm.hit.x / 2; nm.paint.forEach(paint => carvings.push({ L, paint, done: false }));
     if (!L.st.pass) lampSpots.push({ L, local: nm.lamp, flame: .62, pool: .8, bowl: true, light: .45 });
   }
+  await breathe();
   // the relics of the ages without names
   const relicTitle = (L: Live, y: number) => { const title = textPlane(2.3, .65); title.mesh.position.copy(L.pos).add(new THREE.Vector3(0, y, 0)); title.mesh.renderOrder = 3; root.add(title.mesh); L.title = title; };
   const addRelic = (id: string, relic: Relic) => {
@@ -298,6 +309,7 @@ export function createRite(o: Options) {
     };
     L.reset = () => { for (const h of myHands.splice(0)) { root.remove(h); (h.material as THREE.Material).dispose(); } }; }
 
+  await breathe();
   // · the seed: kneel, press it into the earth, and a field of grain spreads across the open land
   let growWheat = (_age: number) => {};
   { const L = byId("farmer");
@@ -430,6 +442,7 @@ export function createRite(o: Options) {
   const crestFire = singleFlame(.75, 1.25); crestFire.place(crestAt); root.add(crestFire.mesh);
   const crestLight = new THREE.PointLight(0xffa052, 0, 22, 2); crestLight.position.copy(crestAt).add(new THREE.Vector3(0, 1.4, 0)); root.add(crestLight);
 
+  await breathe();
   // ─── Countless others: the stones of those no one remembers by name, few in deep time, more with every age ───
   // here and there someone has left a candle burning in front of one, so the road is never wholly dark
   const strays: THREE.Vector3[] = [];
@@ -457,9 +470,12 @@ export function createRite(o: Options) {
     const unnamed = stoneMaterial(0xc9c1b4);
     steles.forEach((list, k) => { if (list.length) land.instance([{ geometry: steleGeometry(.5, 1, .14, tops[k], 70 + k, .4), material: unnamed }], list, 200, { shadow: true }); }); }
 
+  await breathe();
   // ─── The small fires: one at each memorial, burning low until you honour it; and the candles others left ───
   for (const L of live) { L.group.updateMatrixWorld(true); const g = ghostAt[L.st.id]; if (g) L.ghost.set(...g); L.ghost = L.group.localToWorld(L.ghost.clone()); L.ghost.y = height(L.ghost.x, L.ghost.z); }
-  void Promise.all([loadCarvingFonts(), artReady]).then(() => { const queue = [...carvings]; const next = () => { const job = queue.shift(); if (!job) return; job(); setTimeout(next, 30); }; next(); paintMonument(carved < 0 ? 0 : carved); });
+  // faces are cut only as you come near them, one at a time, once their letters and silhouettes have arrived
+  let carveReady = false, nextCarve = 0;
+  void Promise.all([loadCarvingFonts(), artReady]).then(() => { carveReady = true; paintMonument(carved < 0 ? 0 : carved); });
   const LOW = .48; // a memorial's fire before you come: someone has kept it burning
   const candleMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc4, roughness: .6, emissive: 0x6a4410, emissiveIntensity: .35 });
   for (const w of strays.slice(0, o.small ? 8 : 16)) lampSpots.push({ world: w, local: new THREE.Vector3(), flame: .3, pool: .45, bowl: false, light: .5 });
@@ -539,6 +555,7 @@ export function createRite(o: Options) {
   const flies = motes(o.small ? 24 : 48, .09), flySeed = Array.from({ length: (flies.geometry.attributes.position as THREE.BufferAttribute).count }, (_, i) => [seeded(i + 5)(), seeded(i + 55)(), seeded(i + 555)()]);
   const flyHome = new THREE.Vector3(); let flyAmount = 0;
 
+  await breathe();
   // ─── The walk's stars: one constellation, the Torchbearer, fixed in the turning sky ───
   // Each memorial's light rises into its star; a ribbon of light joins it to those already lit; at the end your star is the flame.
   const flareTex = canvasTexture(128, 128, g => { const gr = g.createLinearGradient(0, 64, 128, 64); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(.5, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 62, 128, 4); g.save(); g.translate(64, 64); g.rotate(Math.PI / 2); g.translate(-64, -64); g.fillRect(0, 63, 128, 2.4); g.restore(); });
@@ -662,6 +679,8 @@ export function createRite(o: Options) {
   /** the memorial at the current stop that is waiting to be honoured (or the last one, once they all are) */
   const current = () => { const S = stops[index]; return S.members.find(m => !m.done) ?? S.members[S.members.length - 1]; };
   const passers = live.filter(L => L.st.pass);
+  const touch = matchMedia("(pointer: coarse)").matches;
+  let autoWalk = false, pointerAt = 0;
   let s = 0, speed = 0, holdWalk = 0, stride = 0, holdAct = false, walkPointer = false, keyWalk = false, keyAct = false, holdT = 0, gloom = 0, finaleAt = -1, approach = 1, kneel = 0, raise = 0, offer = 0;
   let crossed = false, lineUntil = 0, returnAt = -1, homeAt = -1, standLit = 0, name = "";
   const passed = new Set<string>();
@@ -680,6 +699,11 @@ export function createRite(o: Options) {
 
   // ─── DOM: a line of narration, the year, a quiet hint, nothing else in the way ───
   const panel = el("rite-panel"), line = el("rite-line"), hint = el("rite-hint"), yearEl = el("rite-year"), actBtn = el<HTMLButtonElement>("rite-act"), homeBtn = el<HTMLButtonElement>("rite-next"), leaveBtn = el<HTMLButtonElement>("rite-leave");
+  const ring = el("rite-ring"), ringFill = ring.querySelector(".fill") as SVGCircleElement, soundBtn = el<HTMLButtonElement>("rite-sound");
+  const soundIsOn = () => document.getElementById("sound-toggle")?.getAttribute("aria-pressed") === "true";
+  const paintSound = () => { const on = soundIsOn(); soundBtn.setAttribute("aria-pressed", String(on)); soundBtn.textContent = (on ? riteUi.soundOn : riteUi.soundOff)[lang]; };
+  soundBtn.addEventListener("click", () => { document.getElementById("sound-toggle")?.click(); sound.wake(); });
+  { const toggle = document.getElementById("sound-toggle"); if (toggle) new MutationObserver(paintSound).observe(toggle, { attributes: true, attributeFilter: ["aria-pressed"] }); }
   const startCard = el("rite-start"), nameInput = el<HTMLInputElement>("rite-name"), beginBtn = el<HTMLButtonElement>("rite-begin"), fade = el("rite-fade"), langBtn = el<HTMLButtonElement>("lang-toggle");
   let lineText = "", hintText = "", yearText = "";
   function setLine(text: string) { if (text === lineText) return; lineText = text; line.classList.remove("show"); void line.offsetWidth; line.textContent = text; if (text) line.classList.add("show"); }
@@ -696,7 +720,7 @@ export function createRite(o: Options) {
     leaveBtn.textContent = riteUi.leave[lang]; homeBtn.textContent = riteUi.home[lang];
     const guide = document.getElementById("rite-guide-name"); if (guide) guide.textContent = riteUi.startTitle[lang];
     yearText = "";
-    paintTitles(); live.forEach(L => L.paint?.());
+    paintTitles(); live.forEach(L => L.paint?.()); paintSound();
   }
   langBtn.addEventListener("click", () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("bb-lang", lang); } catch { /* ignore */ } paintStatic(); });
   document.fonts?.ready.then(() => paintStatic()).catch(() => {});
@@ -770,7 +794,7 @@ export function createRite(o: Options) {
   }
   function end() {
     state = "idle"; panel.hidden = true; leaveBtn.hidden = true; startCard.hidden = true; setLine(""); setHint(""); setYear(""); el("wayfinding").hidden = false;
-    walkPointer = keyWalk = holdAct = keyAct = false; torch.visible = false; glide = null;
+    walkPointer = keyWalk = holdAct = keyAct = autoWalk = false; torch.visible = false; glide = null;
   }
   function leave() {
     if (state === "idle" || state === "intro") { if (state === "intro") { state = "idle"; startCard.hidden = true; } return; }
@@ -813,9 +837,10 @@ export function createRite(o: Options) {
   actBtn.addEventListener("click", () => { if (state === "walk" && phase === "act") complete(current().i); });
   const editing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement;
   addEventListener("keydown", e => { if (state !== "walk" || editing(e)) return; sound.wake();
-    if (e.code === "KeyW" || e.code === "Space" || e.code === "ArrowUp") { keyWalk = true; e.preventDefault(); }
+    if (e.code === "Space") { if (!e.repeat) autoWalk = !autoWalk; e.preventDefault(); }
+    if (e.code === "KeyW" || e.code === "ArrowUp") { keyWalk = true; e.preventDefault(); }
     if (e.code === "KeyE") keyAct = true; });
-  addEventListener("keyup", e => { if (e.code === "KeyW" || e.code === "Space" || e.code === "ArrowUp") keyWalk = false; if (e.code === "KeyE") keyAct = false; });
+  addEventListener("keyup", e => { if (e.code === "KeyW" || e.code === "ArrowUp") keyWalk = false; if (e.code === "KeyE") keyAct = false; });
   let crestLit = 0;
   if (saved) remembered(); else paintMonument(0);
   paintStatic();
@@ -839,16 +864,17 @@ export function createRite(o: Options) {
       if (u?.kind === "mine") { api?.showInfo({ eyebrow: `${riteUi.yourStar[lang]} · ${saved?.date ?? ""}`, title: saved?.name || name || (lang === "zh" ? "你" : "You"), description: riteUi.carried[lang] }); return true; }
       if (u?.kind === "star") { showFigure(u.index); return true; }
       if (u?.kind === "gate" && !(state === "walk" && phase === "act" && u.station === current().i)) { const k = stars.findIndex(x => x.station === u.station); if (k >= 0) { showFigure(k); return true; } }
+      // a quick click or tap on the way walks you on to the next place, or stops you; holding still walks only while held
+      if (state === "walk" && (phase === "walk" || phase === "narrate") && performance.now() - pointerAt < 280) { autoWalk = !autoWalk; return true; }
       return hooks.active();
     },
     press(ray) {
+      // while you stand before a memorial, holding anywhere is holding your fire to it: no need to aim
       if (state !== "walk" || phase !== "act") return false;
-      const hit = pickHit(ray); if (!hit) return false; const u = hit.object.userData;
-      if (u.kind === "gate" && u.station === current().i) { holdAct = true; actHit = hit; return true; }
-      return false;
+      const hit = pickHit(ray), u = hit?.object.userData; holdAct = true; actHit = u?.kind === "gate" && u.station === current().i ? hit : undefined; return true;
     },
     release() { holdAct = false; },
-    pointer(down) { walkPointer = down && state === "walk"; if (down) sound.wake(); },
+    pointer(down) { walkPointer = down && state === "walk"; if (down) { pointerAt = performance.now(); sound.wake(); } },
     open, exit: leave,
   };
 
@@ -909,14 +935,15 @@ export function createRite(o: Options) {
         if (approach < 1) { approach = still ? 1 : Math.min(1, approach + dt / 2.2); camera.position.lerpVectors(approachFrom, at(s).add(new THREE.Vector3(0, EYE, 0)), sm(0, 1, approach)); face(index === 0 ? live[0].focus : at(s + 9).add(new THREE.Vector3(0, EYE, 0)), dt * 2.5); }
         else {
           if (phase === "walk" && stopDone && index < stops.length - 1) { index++; return true; }
-          const near = phase === "narrate" || s > stop - 7, wantWalk = (walkPointer || keyWalk) && (phase === "walk" || phase === "narrate") && !stopDone && s < stop;
+          const pressed = walkPointer && performance.now() - pointerAt > 220; // a quick tap is not a step; holding is
+          const near = phase === "narrate" || s > stop - 7, wantWalk = (pressed || keyWalk || autoWalk) && (phase === "walk" || phase === "narrate") && !stopDone && s < stop;
           holdWalk = wantWalk ? holdWalk + dt : 0;
           const ahead = at(s + 4), here = at(s), slope = Math.max(0, (ahead.y - here.y) / 4);
           const target = wantWalk ? (near ? 1.2 : (1.9 + 1.6 * sm(0, 1.8, holdWalk))) * (1 - .55 * gloom) * (1 - Math.min(.3, slope * 1.6)) : 0;
           speed += (target - speed) * Math.min(1, dt * (wantWalk ? 2.4 : 5));
           if (still && wantWalk) { s = stop; speed = 0; }
           else if (speed > .02) { const before = s; s = Math.min(stop, s + speed * dt); walking = s > before; stride += (s - before) / .78; if (Math.floor(stride) !== Math.floor(stride - (s - before) / .78)) sound.step(here.y / 20); }
-          if (s >= stop - .01) speed = 0;
+          if (s >= stop - .01) { speed = 0; autoWalk = false; }
           if (phase === "walk" && !stopDone) {
             if (stopLines.length && (s >= stop - .01 || (index > 0 && s > stop - 12))) { phase = "narrate"; phaseAt = t; lineUntil = 0; }
             else if (!stopLines.length && s >= stop - .01) { phase = "act"; phaseAt = t; actBtn.textContent = st.act[lang]; }
@@ -945,13 +972,18 @@ export function createRite(o: Options) {
       if (state === "walk" && phase === "act") {
         const f = st.kind === "stone" ? figureOf(L) : null, left = S.members.filter(m => !m.done).length;
         if (t > actLineUntil) setLine(f ? (f.quote ? (lang === "zh" ? `${f.name}：「${f.quote}」` : `${f.name}: “${f.quote}”`) : f.name) : st.act[lang]);
-        setHint(holdAct || keyAct ? riteUi.holding[lang] : `${f ? st.act[lang] + " " : ""}${riteUi.holdKeys[lang]}${G && left > 1 ? (lang === "zh" ? `　還有 ${left - 1} 位` : `  · ${left - 1} more`) : ""}`);
+        setHint(holdAct || keyAct ? riteUi.holding[lang] : `${f ? st.act[lang] + " " : ""}${(touch ? riteUi.holdTouch : riteUi.holdKeys)[lang]}${G && left > 1 ? (lang === "zh" ? `　還有 ${left - 1} 位` : `  · ${left - 1} more`) : ""}`);
         const pressing = (holdAct || keyAct) && t > actReady;
         holdT = pressing ? holdT + dt : Math.max(0, holdT - dt * 2);
         if (holdT > (G ? 1 : holdFor(st))) complete(L.i, actHit);
       }
       if (state === "walk" && phase === "after" && st.kind !== "you" && t - phaseAt > afterFor) { phase = "walk"; phaseAt = t; setLine(""); }
-      if (state === "walk") setHint(phase === "act" ? hintText : approach >= 1 && s < stop - .01 && (phase === "walk" || phase === "narrate") ? `${riteUi.walkHint[lang]} · ${riteUi.walkKeys[lang]}` : "");
+      if (state === "walk") setHint(phase === "act" ? hintText : approach >= 1 && s < stop - .01 && (phase === "walk" || phase === "narrate")
+        ? autoWalk ? (touch ? riteUi.walkingOnTouch : riteUi.walkingOn)[lang] : (touch ? riteUi.walkHintTouch : riteUi.walkHint)[lang] : "");
+      // the ring fills while you hold your fire to a memorial
+      { const need = G ? 1 : holdFor(st), show = state === "walk" && phase === "act"; ring.classList.toggle("on", show); if (show) ringFill.style.strokeDashoffset = String(1 - Math.min(1, holdT / need)); }
+      // a face is cut as you come within sight of it
+      if (carveReady && t > nextCarve) { const job = carvings.find(c => !c.done && (state === "walk" ? Math.abs(c.L.s - s) < 90 : c.L.pos.distanceTo(camera.position) < 120)); if (job) { job.done = true; job.paint(); nextCarve = t + .3; } }
       // in a group, the year is that of whoever you are honouring
       const honouring = G && (phase === "act" || phase === "after") ? (phase === "after" ? S.members[S.members.length - 1] : L) : null;
       if (state === "walk" || state === "finale") setYear(yearLabel(state === "finale" ? 0 : honouring ? honouring.st.yearsAgo : yearsAgoAt(s), lang));
@@ -960,7 +992,10 @@ export function createRite(o: Options) {
       kneel += ((state === "walk" && st.actKind === "kneel" && (acting || (phase === "after" && t - phaseAt < 2.5)) ? 1 : 0) - kneel) * Math.min(1, dt * 3);
       raise += (0 - raise) * Math.min(1, dt * 3);
       offer += (((st.actKind === "offer" || st.actKind === "pass" || st.actKind === "hold") && acting ? 1 : 0) - offer) * Math.min(1, dt * 4);
-      torch.position.copy(torchRest).lerp(torchRaised, raise * .6).lerp(torchOffered, offer); torch.rotation.z = -.12 + raise * .15;
+      // on a narrow, upright screen the torch moves in from the edge, so it stays in your hand where you can see it
+      const halfWide = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect * .7;
+      torchHere.copy(torchRest).setX(Math.min(torchRest.x, halfWide * .62)); if (camera.aspect < 1) torchHere.y = -.38; torch.scale.setScalar(camera.aspect < 1 ? .78 : 1);
+      torch.position.copy(torchHere).lerp(torchRaised, raise * .6).lerp(torchOffered, offer); torch.rotation.z = -.12 + raise * .15;
       // ── the ashes: dark from the edge of the burnt country to the candle; light returns once you have given your flame
       const walkingOn = state === "walk" || state === "finale";
       const gIn = sm(zones.ash[0] + 2, warL.s - 8, s), g = !walkingOn ? 0 : warL.done ? gIn * (1 - sm(0, 1, (t - warL.doneAt - 1) / 6)) : gIn;

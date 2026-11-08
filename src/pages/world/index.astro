@@ -67,11 +67,13 @@ import { destinations } from '../../world/journey';
       <p id="rite-start-text"></p>
       <label id="rite-name-label" for="rite-name"></label>
       <input id="rite-name" maxlength="10" autocomplete="off" />
+      <button id="rite-sound" class="rite-sound" aria-pressed="false"></button>
       <button id="rite-begin" class="primary"></button>
     </section>
     <section id="rite-panel" hidden aria-label="Passing the Fire">
       <p id="rite-year" aria-hidden="true"></p>
       <p id="rite-line" aria-live="polite"></p>
+      <svg id="rite-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17" /><circle class="fill" cx="20" cy="20" r="17" pathLength="1" /></svg>
       <p id="rite-hint"></p>
       <button id="rite-act" class="sr-only"></button>
       <button id="rite-next" hidden></button>

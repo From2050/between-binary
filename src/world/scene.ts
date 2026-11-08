@@ -25,7 +25,7 @@ import { populateUnderstory } from "./understory";
 import { terrainHeight, distToPath } from "./terrain";
 import { ashAmount, corridorGrid, corridorLift, distToWalk, CORRIDOR } from "./rite-path";
 import { addVista } from "./vista";
-import { createRite } from "./rite-world";
+import { createRite, hurryRite } from "./rite-world";
 
 export async function initWorld() {
   const profile = new URLSearchParams(location.search).has('profile');
@@ -808,15 +808,20 @@ export async function initWorld() {
   const exploration = createExploration(camera, canvas, starsGroup, places);
   // The walk: shares only the fire with the rest of the world. It is built only once the world has been entered,
   // while the opening title holds still, so the way in never waits for it.
-  let rite: ReturnType<typeof createRite> | null = null, riteQueued = false;
-  const buildRite = () => { if (rite) return; mark('riteStart'); rite = createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,ferns:riteFerns,grasses:riteGrasses,moon:moonDisc,
+  let rite: Awaited<ReturnType<typeof createRite>> | null = null, riteQueued = false, riteWanted = false;
+  const buildRite = async () => { if (riteQueued) return; riteQueued = true; mark('riteStart'); const built = await createRite({scene,camera,glowTexture,height:terrainHeight,wind,small:smallScreen,rock:riteRock,grass:riteGrass,forest:riteForest,ferns:riteFerns,grasses:riteGrasses,moon:moonDisc,
     grade:grade.uniforms as unknown as {uVignette:{value:number};uGrain:{value:number};uSat:{value:number};uTint:{value:THREE.Color};uTime:{value:number}},
     skyDawn:skyUniforms.uDawn,skyAurora:skyUniforms.uAurora,
     mirror:object=>vista.reflect(object),skyDim:skyUniforms.uDim,starDim:civMat.uniforms.uDim,moonLight,moonBounce,
     civ:{points:starsGroup.getObjectByName("civ-stars") as THREE.Points,group:starsGroup}});
-    rite.attach(exploration);
-    exploration.setRite(rite.hooks);
-    mark('riteBuilt'); needsRender = true; };
+    built.attach(exploration);
+    exploration.setRite(built.hooks);
+    rite = built; mark('riteBuilt'); needsRender = true;
+    // its materials compile in the background, so the first look down the road does not stall
+    void renderer.compileAsync(scene, camera).catch(() => {});
+    if (riteWanted) built.hooks.open(); };
+  // asked for before it is ready: build it now, and open it as soon as it is
+  document.getElementById("rite-guide")?.addEventListener("click", () => { if (!rite) { riteWanted = true; hurryRite(); void buildRite(); } });
   for (const event of [
     "pointermove",
     "pointerdown",
@@ -862,7 +867,7 @@ export async function initWorld() {
     lastRender = now;
     const dt = Math.min(clock.getDelta(), 0.08);
     exploration.update(dt);
-    if (!rite && !riteQueued && exploration.begun) { riteQueued = true; window.setTimeout(buildRite, 80); }
+    if (!riteQueued && exploration.settled) void buildRite();
     if (rite?.update(dt, sceneTime)) needsRender = true;
     // The sky is infinitely far: it travels with the viewer, so stars and constellations keep their shape everywhere.
     starsGroup.position.copy(camera.position);
